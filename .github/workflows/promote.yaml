@@ -8,12 +8,21 @@ jobs:
     if: github.event.issue.pull_request != null && startsWith(github.event.comment.body, '/promote')
     runs-on: ubuntu-latest
     steps:
-      - name: Extract Run ID
+      - name: Extract Run ID and Target
         id: extract
         run: |
           COMMENT="${{ github.event.comment.body }}"
           RUN_ID=$(echo "$COMMENT" | awk '{print $2}')
+          TARGET=$(echo "$COMMENT" | awk '{print $3}')
+          # Default to staging if not specified
+          if [ -z "$TARGET" ]; then
+            TARGET="staging"
+          fi
           echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
+          echo "target=$TARGET" >> $GITHUB_OUTPUT
+          
+      - name: Checkout repository
+        uses: actions/checkout@v4
           
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -24,66 +33,54 @@ jobs:
         run: |
           pip install wandb
           
-      - name: Fetch artifact info from W&B
-        id: fetch
+      - name: Promote model
+        id: promote
         env:
           WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
           WANDB_ENTITY: ${{ secrets.WANDB_ENTITY }}
           WANDB_PROJECT: ${{ secrets.WANDB_PROJECT }}
+          MODEL_NAME: ${{ secrets.WANDB_MODEL_NAME || 'baq-forecastors' }}
         run: |
-          cat > fetch_artifact.py << 'EOF'
+          cat > run_promotion.py << 'EOF'
           import os
-          import wandb
-          from wandb.apis import PublicApi
+          import sys
+          sys.path.append('./action_files')
+          from model_promote import promote_model
           
-          entity = os.getenv('WANDB_ENTITY')
-          project = os.getenv('WANDB_PROJECT')
+          entity = os.getenv('WANDB_ENTITY', 'chogerlate')
+          project = os.getenv('WANDB_PROJECT', 'wandb-registry-model')
+          model_name = os.getenv('MODEL_NAME', 'baq-forecastors')
           run_id = '${{ steps.extract.outputs.run_id }}'
+          target = '${{ steps.extract.outputs.target }}'
           
           try:
-              api = PublicApi()
-              run = api.run(f'{entity}/{project}/{run_id}')
-              artifacts = run.logged_artifacts()
-              
-              if not artifacts:
-                  output = 'No artifacts found.'
-              else:
-                  lines = []
-                  for artifact in artifacts:
-                      # Get more detailed info about each artifact
-                      lines.append(f'- **{artifact.name}** (Type: {artifact.type})')
-                      lines.append(f'  - Size: {artifact.size} bytes')
-                      lines.append(f'  - Version: {artifact.version}')
-                      lines.append(f'  - Created: {artifact.created_at}')
-                      if hasattr(artifact, 'description') and artifact.description:
-                          lines.append(f'  - Description: {artifact.description}')
-                      lines.append('')  # Empty line for spacing
-                  
-                  output = '\n'.join(lines)
-              
-              # Write to GitHub output using proper multiline format
-              delimiter = 'EOF_ARTIFACTS'
+              promote_model(
+                  run_id=run_id,
+                  target=target,
+                  entity=entity,
+                  project=project,
+                  model_name=model_name
+              )
               with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
-                  f.write(f"artifacts<<{delimiter}\n{output}\n{delimiter}\n")
+                  f.write(f"result=✅ Successfully promoted model to {target} from run {run_id}\n")
                   
           except Exception as e:
-              error_msg = f"❌ Error fetching artifacts: {str(e)}"
-              delimiter = 'EOF_ARTIFACTS'
+              error_msg = f"❌ Error promoting model: {str(e)}"
               with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
-                  f.write(f"artifacts<<{delimiter}\n{error_msg}\n{delimiter}\n")
+                  f.write(f"result={error_msg}\n")
           EOF
           
-          python fetch_artifact.py
+          python run_promotion.py
           
-      - name: Comment artifact list on PR
+      - name: Comment result on PR
         uses: peter-evans/create-or-update-comment@v3
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           issue-number: ${{ github.event.issue.number }}
           body: |
-            ## 🧾 W&B Artifacts for Run `${{ steps.extract.outputs.run_id }}`
+            ## 🚀 Model Promotion Result
             
-            ${{ steps.fetch.outputs.artifacts }}
+            ${{ steps.promote.outputs.result }}
             
             ---
-            *Use `/wandb_info <run_id>` to fetch artifacts from any W&B run*
+            *Use `/promote <run_id> <staging|production>` to promote a model*
