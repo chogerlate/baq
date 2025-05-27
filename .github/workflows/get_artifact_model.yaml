@@ -1,29 +1,61 @@
 name: Show Artifacts from W&B Run
+
 on:
   issue_comment:
     types: [created]
+  workflow_dispatch:
+    inputs:
+      # Inputs for manual testing on develop branch
+      run_id_input:
+        description: 'W&B Run ID to fetch artifacts for'
+        required: true
+        type: string
+      is_pull_request_comment:
+        description: 'Is this simulating a comment on a Pull Request?'
+        required: false
+        type: boolean
+        default: true # Most common use case for this workflow
+      issue_number_input:
+        description: 'Issue/PR Number to comment on'
+        required: true
+        type: number
+      comment_body_input: # To simulate the comment body for the `startsWith` check
+        description: 'Simulated comment body (e.g., /wandb_info <run_id>)'
+        required: true
+        type: string
 
 jobs:
   show-artifacts:
-    if: github.event.issue.pull_request != null && startsWith(github.event.comment.body, '/wandb_info')
+    # Adjusted 'if' condition to handle both issue_comment and workflow_dispatch
+    if: |
+      (github.event_name == 'issue_comment' && github.event.issue.pull_request != null && startsWith(github.event.comment.body, '/wandb_info')) ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.is_pull_request_comment && startsWith(github.event.inputs.comment_body_input, '/wandb_info'))
     runs-on: ubuntu-latest
     steps:
-      - name: Extract Run ID
+      - name: Extract Run ID (from actual event or input)
         id: extract
         run: |
-          COMMENT="${{ github.event.comment.body }}"
-          RUN_ID=$(echo "$COMMENT" | awk '{print $2}')
-          echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
-          
+          if ${{ github.event_name == 'issue_comment' }}; then
+            COMMENT="${{ github.event.comment.body }}"
+            RUN_ID=$(echo "$COMMENT" | awk '{print $2}')
+            echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
+            echo "issue_number=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
+            echo "comment_body=$COMMENT" >> $GITHUB_OUTPUT
+          else # workflow_dispatch
+            echo "run_id=${{ github.event.inputs.run_id_input }}" >> $GITHUB_OUTPUT
+            echo "issue_number=${{ github.event.inputs.issue_number_input }}" >> $GITHUB_OUTPUT
+            echo "comment_body=${{ github.event.inputs.comment_body_input }}" >> $GITHUB_OUTPUT
+          fi
+
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'
-          
+
       - name: Install wandb
         run: |
           pip install wandb
-          
+
       - name: Fetch artifact info from W&B
         id: fetch
         env:
@@ -38,19 +70,18 @@ jobs:
           
           entity = os.getenv('WANDB_ENTITY')
           project = os.getenv('WANDB_PROJECT')
-          run_id = '${{ steps.extract.outputs.run_id }}'
-          
+          run_id = '${{ steps.extract.outputs.run_id }}' # Use the extracted run_id
+
           try:
               api = PublicApi()
               run = api.run(f'{entity}/{project}/{run_id}')
               artifacts = run.logged_artifacts()
-              
+          
               if not artifacts:
                   output = 'No artifacts found.'
               else:
                   lines = []
                   for artifact in artifacts:
-                      # Get more detailed info about each artifact
                       lines.append(f'- **{artifact.name}** (Type: {artifact.type})')
                       lines.append(f'  - Size: {artifact.size} bytes')
                       lines.append(f'  - Version: {artifact.version}')
@@ -58,14 +89,14 @@ jobs:
                       if hasattr(artifact, 'description') and artifact.description:
                           lines.append(f'  - Description: {artifact.description}')
                       lines.append('')  # Empty line for spacing
-                  
+          
                   output = '\n'.join(lines)
-              
+          
               # Write to GitHub output using proper multiline format
               delimiter = 'EOF_ARTIFACTS'
               with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
                   f.write(f"artifacts<<{delimiter}\n{output}\n{delimiter}\n")
-                  
+          
           except Exception as e:
               error_msg = f"❌ Error fetching artifacts: {str(e)}"
               delimiter = 'EOF_ARTIFACTS'
@@ -74,12 +105,13 @@ jobs:
           EOF
           
           python fetch_artifact.py
-          
+
       - name: Comment artifact list on PR
         uses: peter-evans/create-or-update-comment@v3
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          issue-number: ${{ github.event.issue.number }}
+          # Use the extracted issue_number for both actual and simulated runs
+          issue-number: ${{ steps.extract.outputs.issue_number }}
           body: |
             ## 🧾 W&B Artifacts for Run `${{ steps.extract.outputs.run_id }}`
             
