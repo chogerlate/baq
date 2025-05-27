@@ -16,7 +16,7 @@ jobs:
         with:
           TRIGGER_PHRASE: "/wandb_list_model"
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.BOT_TOKEN }}
           
       - name: Setup Python
         uses: actions/setup-python@v4
@@ -374,6 +374,6 @@ jobs:
           
       - name: Comment to PR
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.BOT_TOKEN }}
         run: |
           gh pr comment ${{ github.event.issue.number }} --body-file wandb_summary.md
