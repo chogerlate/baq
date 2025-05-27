@@ -67,36 +67,58 @@ jobs:
       - name: Install dependencies
         run: pip install wandb
 
+      - name: Debug script parameters
+        run: |
+          echo "Running with parameters:"
+          echo "Run ID: ${{ steps.params.outputs.run_id }}"
+          echo "Target: ${{ steps.params.outputs.target }}"
+          echo "Entity: ${{ secrets.WANDB_ENTITY || 'baq' }}"
+          echo "Registry Entity: ${{ secrets.WANDB_REGISTRY_ENTITY || 'chogerlate' }}"
+          echo "Project: ${{ secrets.WANDB_PROJECT || 'wandb-registry-model' }}"
+          echo "Model Name: ${{ secrets.WANDB_MODEL_NAME || 'baq-forecastors' }}"
+          echo "Script path exists: $(ls -la action_files/model_promote.py && echo 'Yes' || echo 'No')"
+
       - name: Promote model
         id: promote
         env:
           WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
+          WANDB_ENTITY: ${{ secrets.WANDB_ENTITY || 'baq' }}
           WANDB_REGISTRY_ENTITY: ${{ secrets.WANDB_REGISTRY_ENTITY || 'chogerlate' }}
           WANDB_PROJECT: ${{ secrets.WANDB_PROJECT || 'wandb-registry-model' }}
           MODEL_NAME: ${{ secrets.WANDB_MODEL_NAME || 'baq-forecastors' }}
         run: |
-          python action_files/model_promote.py \
-            --run-id "${{ steps.params.outputs.run_id }}" \
-            --target "${{ steps.params.outputs.target }}" \
-            --entity "$WANDB_REGISTRY_ENTITY" \
-            --project "$WANDB_PROJECT" \
-            --model-name "$MODEL_NAME" > promotion_output.txt
+          # Run the script and capture all output including errors
+          {
+            python action_files/model_promote.py \
+              --run-id "${{ steps.params.outputs.run_id }}" \
+              --target "${{ steps.params.outputs.target }}" \
+              --entity "$WANDB_ENTITY" \
+              --registry-entity "$WANDB_REGISTRY_ENTITY" \
+              --project "$WANDB_PROJECT" \
+              --model-name "$MODEL_NAME"
+          } > promotion_output.txt 2>&1
+          
+          # Echo the full output for debugging
+          echo "Script output:"
+          cat promotion_output.txt
+          
+          # Exit code of the script
+          SCRIPT_EXIT_CODE=$?
+          echo "Script exit code: $SCRIPT_EXIT_CODE"
           
           # Save outputs for the comment step
-          if grep -q "::error::" promotion_output.txt; then
-            ERROR=$(grep "::error::" promotion_output.txt | sed 's/::error:://')
+          if [ $SCRIPT_EXIT_CODE -ne 0 ] || grep -q "::error::" promotion_output.txt; then
+            ERROR=$(grep "::error::" promotion_output.txt | sed 's/::error:://' || echo "Unknown error, check logs")
             echo "status=error" >> $GITHUB_OUTPUT
             echo "message=❌ $ERROR" >> $GITHUB_OUTPUT
           else
-            MODEL_VERSION=$(grep "::set-output name=model_version::" promotion_output.txt | sed 's/::set-output name=model_version:://')
-            ARTIFACT_PATH=$(grep "::set-output name=artifact_path::" promotion_output.txt | sed 's/::set-output name=artifact_path:://')
+            MODEL_VERSION=$(grep "::set-output name=model_version::" promotion_output.txt | sed 's/::set-output name=model_version:://' || echo "unknown")
+            ARTIFACT_PATH=$(grep "::set-output name=artifact_path::" promotion_output.txt | sed 's/::set-output name=artifact_path:://' || echo "unknown")
             echo "status=success" >> $GITHUB_OUTPUT
             echo "message=✅ Successfully promoted model to ${{ steps.params.outputs.target }}" >> $GITHUB_OUTPUT
             echo "model_version=$MODEL_VERSION" >> $GITHUB_OUTPUT
             echo "artifact_path=$ARTIFACT_PATH" >> $GITHUB_OUTPUT
           fi
-          
-          cat promotion_output.txt
 
       - name: Comment on PR
         if: steps.params.outputs.issue_number != ''
