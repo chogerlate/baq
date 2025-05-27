@@ -51,14 +51,11 @@ def promote_model(
             raise ValueError("target cannot be empty")
             
         # Initialize W&B API
-        if api_key:
-            wandb.login(key=api_key)
-        elif os.getenv('WANDB_API_KEY'):
-            wandb.login(key=os.getenv('WANDB_API_KEY'))
-        else:
+        api_key_to_use = api_key or os.getenv('WANDB_API_KEY')
+        if not api_key_to_use:
             raise ValueError("W&B API key must be provided via parameter or WANDB_API_KEY environment variable")
-        
-        api = wandb.Api()
+            
+        api = wandb.Api(api_key=api_key_to_use)
         logger.info(f"Initialized W&B API for entity: {entity}")
         
         # Get the run
