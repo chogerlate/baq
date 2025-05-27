@@ -1,0 +1,89 @@
+name: Show Artifacts from W&B Run
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  show-artifacts:
+    if: github.event.issue.pull_request != null && startsWith(github.event.comment.body, '/wandb_info')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Extract Run ID
+        id: extract
+        run: |
+          COMMENT="${{ github.event.comment.body }}"
+          RUN_ID=$(echo "$COMMENT" | awk '{print $2}')
+          echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
+          
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+          
+      - name: Install wandb
+        run: |
+          pip install wandb
+          
+      - name: Fetch artifact info from W&B
+        id: fetch
+        env:
+          WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
+          WANDB_ENTITY: ${{ secrets.WANDB_ENTITY }}
+          WANDB_PROJECT: ${{ secrets.WANDB_PROJECT }}
+        run: |
+          cat > fetch_artifact.py << 'EOF'
+          import os
+          import wandb
+          from wandb.apis import PublicApi
+          
+          entity = os.getenv('WANDB_ENTITY')
+          project = os.getenv('WANDB_PROJECT')
+          run_id = '${{ steps.extract.outputs.run_id }}'
+          
+          try:
+              api = PublicApi()
+              run = api.run(f'{entity}/{project}/{run_id}')
+              artifacts = run.logged_artifacts()
+              
+              if not artifacts:
+                  output = 'No artifacts found.'
+              else:
+                  lines = []
+                  for artifact in artifacts:
+                      # Get more detailed info about each artifact
+                      lines.append(f'- **{artifact.name}** (Type: {artifact.type})')
+                      lines.append(f'  - Size: {artifact.size} bytes')
+                      lines.append(f'  - Version: {artifact.version}')
+                      lines.append(f'  - Created: {artifact.created_at}')
+                      if hasattr(artifact, 'description') and artifact.description:
+                          lines.append(f'  - Description: {artifact.description}')
+                      lines.append('')  # Empty line for spacing
+                  
+                  output = '\n'.join(lines)
+              
+              # Write to GitHub output using proper multiline format
+              delimiter = 'EOF_ARTIFACTS'
+              with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+                  f.write(f"artifacts<<{delimiter}\n{output}\n{delimiter}\n")
+                  
+          except Exception as e:
+              error_msg = f"❌ Error fetching artifacts: {str(e)}"
+              delimiter = 'EOF_ARTIFACTS'
+              with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+                  f.write(f"artifacts<<{delimiter}\n{error_msg}\n{delimiter}\n")
+          EOF
+          
+          python fetch_artifact.py
+          
+      - name: Comment artifact list on PR
+        uses: peter-evans/create-or-update-comment@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          issue-number: ${{ github.event.issue.number }}
+          body: |
+            ## 🧾 W&B Artifacts for Run `${{ steps.extract.outputs.run_id }}`
+            
+            ${{ steps.fetch.outputs.artifacts }}
+            
+            ---
+            *Use `/wandb_info <run_id>` to fetch artifacts from any W&B run*

@@ -28,20 +28,3 @@ jobs:
           python-version-file: "pyproject.toml"
       - name: Install the project
         run: uv sync --all-extras 
-      - uses: astral-sh/ruff-action@v3
-        with:
-          args: --fix 
-          src: "./src"
-      - name: Train
-        run: uv run src/baq/run.py
-    #   - name: Evaluation
-    #     env:
-    #       REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    #     run: | 
-    #       echo "## Model Metrics" > report.md
-    #       cat metrics.txt >> report.md
-            
-    #       echo '## Confusion Matrix Plot' >> report.md
-    #       echo '![Confusion Matrix](model_results.png)' >> report.md
-
-    #       cml comment create report.md
