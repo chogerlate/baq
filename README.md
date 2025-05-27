@@ -1,49 +1,92 @@
-# Bangkok Air Quality Forecasting and Monitoring
+# PM2.5 Forecasting Pipeline
 
-## Introduction
+This project implements a machine learning pipeline for forecasting PM2.5 air quality levels using time series data, tracked with Weights & Biases and managed with Hydra configuration.
 
-This project develops a machine learning system to forecast PM2.5 concentrations in Bangkok using historical air quality and weather data. Air pollution, particularly PM2.5, has significant impacts on public health and the environment. By predicting PM2.5 levels, this system helps authorities and individuals take proactive measures to reduce exposure and mitigate health risks.
+## Features
 
-The forecasting system is built as an end-to-end MLOps pipeline that covers:
-- Automated data collection from Open-Meteo API
-- Data preprocessing and feature engineering
-- Model training and evaluation
-- Continuous deployment and monitoring
-- Interactive web dashboard for visualization
+- **Time Series Forecasting**: Predict PM2.5 levels hours in advance
+- **Feature Engineering**: Automatic creation of time-based features, lag features, and rolling statistics
+- **Model Training**: Support for XGBoost, Random Forest, and other regression models
+- **Evaluation**: Comprehensive metrics and visualizations for model performance
+- **Experiment Tracking**: Full integration with Weights & Biases for experiment tracking
+- **Configuration Management**: Hydra for flexible configuration of all pipeline components
 
-Through accurate forecasting of air quality, this project aims to contribute to better public health outcomes and environmental management in Bangkok.
-
-## Project Setup
-
-### Prerequisites
-
-- Python 3.10+
-- Git
-- Docker and Docker Compose
-- GitHub account
-- [UV package manager](https://docs.astral.sh/uv/getting-started/installation/)
-
-### Installation
+## Setup
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/bqa.git
-cd bqa
+git clone https://github.com/yourusername/pm25-forecasting.git
+cd pm25-forecasting
 ```
 
-2. Set up the development environment using UV:
+2. Install dependencies:
 ```bash
-uv sync
+pip install -r requirements.txt
 ```
 
+3. Set up Weights & Biases (optional but recommended):
+```bash
+wandb login
+```
 
-## Resources
+## Usage
 
-- [Open-Meteo API Documentation](https://open-meteo.com/en/docs)
-- [MLflow Documentation](https://mlflow.org/docs/latest/index.html)
-- [FastAPI Documentation](https://fastapi.tiangolo.com/)
-- [Streamlit Documentation](https://docs.streamlit.io/)
+### Basic Training
 
-## License
+To train a model with default settings:
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+```bash
+python src/train.py
+```
+
+### Using Different Models
+
+To train with a specific model:
+
+```bash
+python src/train.py model=random_forest
+```
+
+### Modifying Parameters
+
+To change the forecast horizon:
+
+```bash
+python src/train.py data.forecast_horizon=12
+```
+
+### Configuration
+
+The pipeline uses Hydra for configuration management. Main configuration files:
+
+- `configs/config.yaml`: Main configuration
+- `configs/model/xgboost.yaml`: XGBoost model configuration
+- `configs/model/random_forest.yaml`: Random Forest model configuration
+
+## Project Structure
+
+```
+pm25-forecasting/
+├── configs/              # Configuration files
+│   ├── config.yaml       # Main configuration
+│   └── model/            # Model-specific configurations
+├── src/                  # Source code
+│   ├── data/             # Data loading and preprocessing
+│   ├── features/         # Feature engineering
+│   ├── models/           # Model training and evaluation
+│   ├── utils/            # Utility functions
+│   └── train.py          # Main training script
+├── notebooks/            # Jupyter notebooks for exploration
+├── artifacts/            # Output artifacts (models, plots, etc.)
+└── requirements.txt      # Dependencies
+```
+
+## Outputs
+
+After training, the pipeline produces the following artifacts:
+
+- Trained model and scaler
+- Performance metrics
+- Visualizations (feature importance, actual vs. predicted plots)
+- Model card with key information
+- PM2.5 forecasts for future periods
