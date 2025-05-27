@@ -71,14 +71,14 @@ jobs:
         id: promote
         env:
           WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
-          WANDB_ENTITY: ${{ secrets.WANDB_ENTITY || 'chogerlate' }}
+          WANDB_REGISTRY_ENTITY: ${{ secrets.WANDB_REGISTRY_ENTITY || 'chogerlate' }}
           WANDB_PROJECT: ${{ secrets.WANDB_PROJECT || 'wandb-registry-model' }}
           MODEL_NAME: ${{ secrets.WANDB_MODEL_NAME || 'baq-forecastors' }}
         run: |
           python action_files/model_promote.py \
             --run-id "${{ steps.params.outputs.run_id }}" \
             --target "${{ steps.params.outputs.target }}" \
-            --entity "$WANDB_ENTITY" \
+            --entity "$WANDB_REGISTRY_ENTITY" \
             --project "$WANDB_PROJECT" \
             --model-name "$MODEL_NAME" > promotion_output.txt
           
