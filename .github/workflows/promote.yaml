@@ -1,132 +1,119 @@
-name: Promote Model
+name: Promote ML Model
 
 on:
   issue_comment:
     types: [created]
   workflow_dispatch:
     inputs:
-      # Inputs for manual testing on develop branch
-      run_id_input:
+      run_id:
         description: 'W&B Run ID to promote'
         required: true
         type: string
-      target_input:
-        description: 'Target alias (e.g., staging, production)'
+      target:
+        description: 'Target environment (staging or production)'
         required: false
-        type: string
-        default: 'staging' # Matches your workflow's default
-      is_pull_request_comment:
-        description: 'Is this simulating a comment on a Pull Request?'
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+      issue_number:
+        description: 'PR number to comment on (for manual runs)'
         required: false
-        type: boolean
-        default: true
-      issue_number_input:
-        description: 'Issue/PR Number to comment on'
-        required: true
         type: number
-      comment_body_input: # To simulate the comment body for the `startsWith` check
-        description: 'Simulated comment body (e.g., /promote <run_id> <target>)'
-        required: true
-        type: string
 
 jobs:
   promote-model:
-    # Adjusted 'if' condition to handle both issue_comment and workflow_dispatch
     if: |
-      (github.event_name == 'issue_comment' && github.event.issue.pull_request != null && startsWith(github.event.comment.body, '/promote')) ||
-      (github.event_name == 'workflow_dispatch' && github.event.inputs.is_pull_request_comment && startsWith(github.event.inputs.comment_body_input, '/promote'))
+      (github.event_name == 'issue_comment' && 
+       github.event.issue.pull_request && 
+       startsWith(github.event.comment.body, '/promote')) || 
+      github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    name: Promote Model in W&B Registry
+    
     steps:
-      - name: Extract Run ID and Target (from actual event or input)
-        id: extract
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Extract parameters
+        id: params
         run: |
-          if ${{ github.event_name == 'issue_comment' }}; then
+          if [[ "${{ github.event_name }}" == "issue_comment" ]]; then
             COMMENT="${{ github.event.comment.body }}"
             RUN_ID=$(echo "$COMMENT" | awk '{print $2}')
             TARGET=$(echo "$COMMENT" | awk '{print $3}')
-            # Default to staging if not specified in actual comment
-            if [ -z "$TARGET" ]; then
+            ISSUE_NUM="${{ github.event.issue.number }}"
+            
+            # Default to staging if not specified
+            if [[ -z "$TARGET" ]]; then
               TARGET="staging"
             fi
-            echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
-            echo "target=$TARGET" >> $GITHUB_OUTPUT
-            echo "issue_number=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
-            echo "comment_body=$COMMENT" >> $GITHUB_OUTPUT
-          else # workflow_dispatch
-            echo "run_id=${{ github.event.inputs.run_id_input }}" >> $GITHUB_OUTPUT
-            echo "target=${{ github.event.inputs.target_input }}" >> $GITHUB_OUTPUT
-            echo "issue_number=${{ github.event.inputs.issue_number_input }}" >> $GITHUB_OUTPUT
-            echo "comment_body=${{ github.event.inputs.comment_body_input }}" >> $GITHUB_OUTPUT
+          else
+            RUN_ID="${{ github.event.inputs.run_id }}"
+            TARGET="${{ github.event.inputs.target }}"
+            ISSUE_NUM="${{ github.event.inputs.issue_number }}"
           fi
-
-      - name: Checkout repository
-        uses: actions/checkout@v4
+          
+          echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
+          echo "target=$TARGET" >> $GITHUB_OUTPUT
+          echo "issue_number=$ISSUE_NUM" >> $GITHUB_OUTPUT
 
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'
 
-      - name: Install wandb
-        run: |
-          pip install wandb
+      - name: Install dependencies
+        run: pip install wandb
 
       - name: Promote model
         id: promote
         env:
           WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
-          WANDB_ENTITY: ${{ secrets.WANDB_ENTITY }}
-          WANDB_PROJECT: ${{ secrets.WANDB_PROJECT }}
+          WANDB_ENTITY: ${{ secrets.WANDB_ENTITY || 'chogerlate' }}
+          WANDB_PROJECT: ${{ secrets.WANDB_PROJECT || 'wandb-registry-model' }}
           MODEL_NAME: ${{ secrets.WANDB_MODEL_NAME || 'baq-forecastors' }}
         run: |
-          # Ensure action_files directory exists and contains model_promote.py
-          # This assumes you've committed action_files/model_promote.py to your repo
-          if [ ! -f "./action_files/model_promote.py" ]; then
-            echo "Error: action_files/model_promote.py not found. Please ensure it's committed."
-            exit 1
+          python action_files/model_promote.py \
+            --run-id "${{ steps.params.outputs.run_id }}" \
+            --target "${{ steps.params.outputs.target }}" \
+            --entity "$WANDB_ENTITY" \
+            --project "$WANDB_PROJECT" \
+            --model-name "$MODEL_NAME" > promotion_output.txt
+          
+          # Save outputs for the comment step
+          if grep -q "::error::" promotion_output.txt; then
+            ERROR=$(grep "::error::" promotion_output.txt | sed 's/::error:://')
+            echo "status=error" >> $GITHUB_OUTPUT
+            echo "message=❌ $ERROR" >> $GITHUB_OUTPUT
+          else
+            MODEL_VERSION=$(grep "::set-output name=model_version::" promotion_output.txt | sed 's/::set-output name=model_version:://')
+            ARTIFACT_PATH=$(grep "::set-output name=artifact_path::" promotion_output.txt | sed 's/::set-output name=artifact_path:://')
+            echo "status=success" >> $GITHUB_OUTPUT
+            echo "message=✅ Successfully promoted model to ${{ steps.params.outputs.target }}" >> $GITHUB_OUTPUT
+            echo "model_version=$MODEL_VERSION" >> $GITHUB_OUTPUT
+            echo "artifact_path=$ARTIFACT_PATH" >> $GITHUB_OUTPUT
           fi
+          
+          cat promotion_output.txt
 
-          cat > run_promotion.py << 'EOF'
-          import os
-          import sys
-          sys.path.append('./action_files') # Make sure this path is correct relative to your repo root
-          from model_promote import promote_model
-          
-          entity = os.getenv('WANDB_ENTITY')
-          project = os.getenv('WANDB_PROJECT')
-          model_name = os.getenv('MODEL_NAME')
-          run_id = '${{ steps.extract.outputs.run_id }}'
-          target = '${{ steps.extract.outputs.target }}'
-          
-          try:
-              promote_model(
-                  run_id=run_id,
-                  target=target,
-                  entity=entity,
-                  project=project,
-                  model_name=model_name
-              )
-              with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
-                  f.write(f"result=✅ Successfully promoted model to {target} from run {run_id}\n")
-          
-          except Exception as e:
-              error_msg = f"❌ Error promoting model: {str(e)}"
-              with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
-                  f.write(f"result={error_msg}\n")
-          EOF
-          
-          python run_promotion.py
-
-      - name: Comment result on PR
+      - name: Comment on PR
+        if: steps.params.outputs.issue_number != ''
         uses: peter-evans/create-or-update-comment@v3
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          # Use the extracted issue_number for both actual and simulated runs
-          issue-number: ${{ steps.extract.outputs.issue_number }}
+          token: ${{ secrets.BOT_TOKEN }}
+          issue-number: ${{ steps.params.outputs.issue_number }}
           body: |
             ## 🚀 Model Promotion Result
             
-            ${{ steps.promote.outputs.result }}
+            ${{ steps.promote.outputs.message }}
+            
+            **Details:**
+            - **Run ID:** `${{ steps.params.outputs.run_id }}`
+            - **Target:** `${{ steps.params.outputs.target }}`
+            ${{ steps.promote.outputs.status == 'success' && format('- **Model Version:** `{0}`', steps.promote.outputs.model_version) || '' }}
+            ${{ steps.promote.outputs.status == 'success' && format('- **Artifact Path:** `{0}`', steps.promote.outputs.artifact_path) || '' }}
             
             ---
-            *Use `/promote <run_id> <staging|production>` to promote a model*
+            *Use `/promote <run_id> [staging|production]` to promote a model*
