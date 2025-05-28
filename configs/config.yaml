@@ -1,5 +1,5 @@
 # Global Configuration
-experiment_tracking_status: false
+experiment_tracking_status: true
 
 # Data Configuration
 data:
@@ -7,11 +7,33 @@ data:
 
 # Model Configuration
 model:
-  model_type: "xgboost"
-  model_params:
-    n_estimators: 100
-    max_depth: 10
-    random_state: 42
+  model_type: "xgboost" # Options: "random_forest", "xgboost", "lstm"
+  random_forest:
+    model_params:
+      n_estimators: 100
+      max_depth: 10
+    training_params:
+      learning_rate: 0.001
+      batch_size: 32
+      epochs: 100
+  xgboost:
+    model_params:
+      n_estimators: 50
+      max_depth: 10
+    training_params:
+      learning_rate: 0.001
+      batch_size: 32
+      epochs: 100
+  lstm:
+    model_params:
+      n_layers: 2
+      hidden_size: 128
+      dropout: 0.2
+    training_params:
+      learning_rate: 0.001
+      batch_size: 32
+      epochs: 100
+
 
 # Artifacts Configuration
 artifacts:
@@ -30,6 +52,7 @@ artifacts:
   reports:
     path: "reports"
     filename: "monitoring_report.html"
+
 # Training Configuration
 training:
   forecast_horizon: 24
@@ -44,3 +67,4 @@ wandb:
   entity: null  # Set your wandb username/team
   tags: ["pm2.5", "forecasting", "air-quality"]
   log_model: true
+  register_model: true
