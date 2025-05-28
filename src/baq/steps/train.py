@@ -5,40 +5,12 @@ from pathlib import Path
 from typing import Tuple, Dict, Union, List
 from sklearn.ensemble import RandomForestRegressor
 from xgboost import XGBRegressor
-from tensorflow.keras.models import Model
-from tensorflow.keras.layers import Input, LSTM, Dense, Dropout
-from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping, ReduceLROnPlateau
 
 from baq.core.evaluation import calculate_metrics
 from baq.data.utils import create_sequences
-
+from baq.models.lstm import create_lstm_model, create_lstm_callbacks
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-
-
-def create_lstm_model(input_shape: Tuple[int, int]) -> Model:
-    inputs = Input(shape=input_shape)
-    x = LSTM(128, return_sequences=True)(inputs)
-    x = Dropout(0.2)(x)
-    x = LSTM(64)(x)
-    x = Dropout(0.2)(x)
-    outputs = Dense(1)(x)
-    model = Model(inputs, outputs)
-    model.compile(optimizer=Adam(1e-3), loss="mse", metrics=["mae"])
-    return model
-
-
-def create_lstm_callbacks(
-    checkpoint_path: Union[str, Path] = "best_lstm.keras",
-    early_stopping_patience: int = 10,
-    reduce_lr_patience: int = 5,
-) -> List:
-    return [
-        ModelCheckpoint(str(checkpoint_path), save_best_only=True, monitor="val_loss", verbose=1),
-        EarlyStopping(monitor="val_loss", patience=early_stopping_patience, restore_best_weights=True, verbose=1),
-        ReduceLROnPlateau(monitor="val_loss", factor=0.1, patience=reduce_lr_patience, min_lr=1e-6, verbose=1),
-    ]
 
 
 def train_model(
