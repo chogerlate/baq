@@ -1,75 +1,96 @@
-"""
-This module contains the code for training forecasting models.
-- Implements various time series forecasting algorithms
-- Handles model hyperparameter tuning and optimization
-- Supports both traditional statistical models and machine learning approaches
-- Manages the training process including data splitting, validation, and model persistence
-- Provides utilities for handling time-based cross-validation and seasonal patterns
-"""
-
+import logging
+import numpy as np
 import pandas as pd
-from sklearn.model_selection import TimeSeriesSplit
-from xgboost import XGBRegressor
+from pathlib import Path
+from typing import Tuple, Dict, Union, List
 from sklearn.ensemble import RandomForestRegressor
+from xgboost import XGBRegressor
+
 from baq.core.evaluation import calculate_metrics
+from baq.data.utils import create_sequences
+from baq.models.lstm import LSTMForecaster
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
 
 def train_model(
-    X: pd.DataFrame,
-    y: pd.Series,
+    X_train: pd.DataFrame,
+    y_train: pd.Series,
+    X_val: pd.DataFrame,
+    y_val: pd.Series,
+    X_test: pd.DataFrame,
+    y_test: pd.Series,
     model_name: str,
     model_params: dict,
-    training_config: dict,
-) -> tuple[object, dict]:
+    model_training_params: dict,
+    training_config: dict
+) -> Tuple[object, dict]:
     """
-    Train the model.
+    Train a model based on the specified model name and parameters.
+        if ML model -> train on tabular lag-features
+        if LSTM     -> sliding window + LSTM
+
+    Args:
+        X_train: Training features
+        y_train: Training target
+        X_val: Validation features
+        y_val: Validation target
+        X_test: Test features
+        y_test: Test target
+        model_name: Name of the model to train (e.g., "xgboost", "random_forest", "lstm")
+        model_params: Parameters for the model
+        model_training_params: Configuration for training (e.g., epochs, batch size)
+        training_config: Configuration for training 
+
+    Returns:
+        model: Trained model
+        metrics: Evaluation metrics
     """
-    # 1. Time Series Split for evaluation only
-    # Use TimeSeriesSplit for proper time series validation
-    # This ensures we're always training on past data and testing on future data
-    # Convert test_size from percentage to number of samples if it's a float
-    test_size = training_config["test_size"]
-    if isinstance(test_size, float) and 0 < test_size < 1:
-        test_size = int(len(X) * test_size)
-    
-    tscv = TimeSeriesSplit(n_splits=training_config["n_splits"], test_size=test_size)
-    
-    # Dictionary to store all results
-    all_metrics = {}
-    all_metrics[model_name] = {}
-    
-    # Evaluate model performance using cross-validation
-    for fold, (train_index, test_index) in enumerate(tscv.split(X)):
-        print(f"\nEvaluating on fold {fold+1}/{training_config['n_splits']}")
-        
-        # Split data for this fold
-        X_train, X_test = X.iloc[train_index], X.iloc[test_index]
-        y_train, y_test = y.iloc[train_index], y.iloc[test_index]
-        
-        # Train model for evaluation
-        fold_model = None
+    model_name = model_name.lower()
+    if model_name in ("xgboost", "random_forest"):
         if model_name == "xgboost":
-            fold_model = XGBRegressor(**model_params).fit(X_train, y_train)
-        elif model_name == "random_forest":
-            fold_model = RandomForestRegressor(**model_params).fit(X_train, y_train)
+            model = XGBRegressor(**model_params)
+        else:
+            model = RandomForestRegressor(**model_params)
+
+        model.fit(X_train, y_train)
+        preds = model.predict(X_test)
+        metrics = calculate_metrics(y_test, preds)
+        return model, metrics
+
+    elif model_name == "lstm":
+        seq_len = int(training_config.get("sequence_length", 24))
+        # 1) create sequence
+        X_tr_seq, y_tr_seq = create_sequences(X_train, y_train, seq_len)
+        X_val_seq, y_val_seq = create_sequences(X_val, y_val, seq_len)
+        X_te_seq, y_te_seq = create_sequences(X_test, y_test, seq_len)
+
+        # 2) build & train LSTM
+        lstm_params = {
+            "input_shape": (seq_len, X_train.shape[1]),
+            "lstm_units": model_params.get("lstm_units", (128, 64)),
+            "dropout_rate": model_params.get("dropout_rate", 0.2),
+            "learning_rate": model_params.get("learning_rate", 1e-3),
+            "checkpoint_path": model_params.get("checkpoint_path", "best_lstm.h5"),
+            "early_stopping_patience": int(model_training_params.get("early_stopping_patience", 10)),
+            "reduce_lr_patience": int(model_training_params.get("reduce_lr_patience", 5))
+        }
         
-        # Evaluate model for this fold
-        print(f"\nEvaluating {model_name} model (fold {fold+1}):")
-        y_pred = fold_model.predict(X_test)
-        metrics = calculate_metrics(y_test, y_pred)
-        all_metrics[model_name][fold] = metrics
+        model = LSTMForecaster(**lstm_params)
+        model.fit(
+            X_tr_seq, y_tr_seq,
+            validation_data=(X_val_seq, y_val_seq),
+            epochs=int(model_training_params.get("epochs", 50)),
+            batch_size=int(model_training_params.get("batch_size", 32)),
+            shuffle=False,
+            verbose=1
+        )
 
-    # Calculate average metrics across all folds
-    avg_metrics = {model_name: {}}
-    for metric in list(all_metrics[model_name][0].keys()):
-        avg_metrics[model_name][metric] = sum(fold_data[metric] for fold_data in all_metrics[model_name].values()) / len(all_metrics[model_name])
-    
-    # Now train the final model on the full dataset
-    print(f"\nTraining final {model_name} model on full dataset")
-    final_model = None
-    if model_name == "xgboost":
-        final_model = XGBRegressor(**model_params).fit(X, y)
-    elif model_name == "random_forest":
-        final_model = RandomForestRegressor(**model_params).fit(X, y)
+        # 3) evaluate
+        preds = model.predict(X_te_seq)
+        metrics = calculate_metrics(y_te_seq, preds)
+        return model, metrics
 
-    return final_model, avg_metrics
+    else:
+        raise ValueError(f"Unsupported model: {model_name}")

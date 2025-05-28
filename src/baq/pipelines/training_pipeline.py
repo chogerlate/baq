@@ -36,7 +36,7 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
-def setup_wandb():
+def setup_wandb(config: DictConfig):
     """
     Set up Weights & Biases for experiment tracking.
     
@@ -45,8 +45,11 @@ def setup_wandb():
     """
     wandb.login(key=os.getenv("WANDB_API_KEY"))
     return wandb.init(
+        name=f'{config["model"]["model_type"]}-{wandb.util.generate_id()}',
         project=os.getenv("WANDB_PROJECT"),
-        entity=os.getenv("WANDB_ENTITY")
+        entity=os.getenv("WANDB_ENTITY"),
+        job_type=config["wandb"]["job_type"],
+        tags=config["wandb"]["tags"] + [config["model"]["model_type"]]
     )
 
 
@@ -60,9 +63,8 @@ def training_pipeline(config: DictConfig) -> None:
     """
     logger.info(f"Using configuration: \n{OmegaConf.to_yaml(config)}")
     
-    # Set up wandb
-    # run = setup_wandb()
-    
+    # Get model type
+    model_type = config["model"]["model_type"]
     # Create artifact directories
     artifact_path = create_artifact_directories(config=config)
     
@@ -70,18 +72,22 @@ def training_pipeline(config: DictConfig) -> None:
     df = load_data(config["data"]["raw_data_path"])
     
     # Create features and preprocess data
-    X_train, y_train, X_test, y_test, processor = process_train_data(
-        data=df,
+    X_train, y_train, X_val, y_val, X_test, y_test, processor = process_train_data(
+        df,
         target_column=config["training"]["target_column"],
-        forecast_horizon=config["training"]["forecast_horizon"]
-    )    
+        train_ratio=0.7,
+        val_ratio=0.1,
+        test_ratio=0.2,
+    )
     
     # Train model
     model, avg_metrics = train_model(
-        X=X_train,
-        y=y_train,
-        model_name=config["model"]["model_type"],
-        model_params=config["model"]["model_params"],
+        X_train, y_train,
+        X_val,   y_val,
+        X_test,  y_test,
+        model_name=model_type,
+        model_params=config["model"][model_type]["model_params"],
+        model_training_params=config["model"][model_type]["training_params"],
         training_config=config["training"]
     )
     
@@ -90,7 +96,8 @@ def training_pipeline(config: DictConfig) -> None:
         model=model,
         X_test=X_test,
         y_test=y_test,
-        forecast_horizon=config["training"]["forecast_horizon"]
+        forecast_horizon=config["training"]["forecast_horizon"],
+        sequence_length=config["training"]["sequence_length"]
     )
     
 
@@ -120,15 +127,16 @@ def training_pipeline(config: DictConfig) -> None:
         config=config,
     )
     
-    model_type = config["model"]["model_type"]
-    logger.info("\n========== Training completed ==========")
+    
+    print("\n========== Training completed ==========")
     logger.info(f"Best model: {model_type.upper()}")
     logger.info(f"Metrics: {avg_metrics}")
     logger.info(f"Artifacts saved to {artifact_path}")
+    print("========================================\n")
 
     # Section: Logging
     if config["experiment_tracking_status"]:
-        run = setup_wandb()
+        run = setup_wandb(config=config)
         
         # Artifacts
         model_artifact = wandb.Artifact(
@@ -186,5 +194,18 @@ def training_pipeline(config: DictConfig) -> None:
         run.log_artifact(run_log_artifact)
         run.log_artifact(monitoring_report_artifact)
 
+        # Register the model
+        if config["wandb"]["register_model"]:
+            target_path = os.getenv("WANDB_MODEL_REGISTRY_COLLECTION_PATH")
+            if target_path is not None:
+                run.link_artifact(
+                    artifact=model_artifact,
+                    target_path=target_path
+                )
+                logger.info(f"Model registered to {target_path}")
+            else:
+                logger.warning("WANDB_MODEL_REGISTRY_COLLECTION_PATH environment variable is not set. Model registration skipped.")
+        
+        # Finish the run
         run.finish()
         
