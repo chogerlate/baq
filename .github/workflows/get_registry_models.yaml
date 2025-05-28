@@ -25,11 +25,13 @@ jobs:
 
       - name: Extract issue number
         id: params
+        shell: bash
         run: |
           if [[ "${{ github.event_name }}" == "issue_comment" ]]; then
             echo "issue_number=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
           else
             echo "issue_number=${{ github.event.inputs.issue_number }}" >> $GITHUB_OUTPUT
+          fi
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
