@@ -73,10 +73,7 @@ jobs:
       - name: Run registry report script
         env:
           WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
-          WANDB_ENTITY: ${{ secrets.WANDB_ENTITY }}
-          WANDB_REGISTRY_ENTITY: ${{ secrets.WANDB_REGISTRY_ENTITY }}
-          WANDB_PROJECT: ${{ secrets.WANDB_PROJECT }}
-          MODEL_NAME: ${{ secrets.WANDB_MODEL_NAME || 'baq-forecastors' }}
+          WANDB_MODEL_REGISTRY_COLLECTION_PATH: ${{ secrets.WANDB_MODEL_REGISTRY_COLLECTION_PATH }}
         run: |
           python action_files/get_registry_models.py
       

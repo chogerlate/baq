@@ -74,10 +74,8 @@ def get_alias_status(aliases):
     return " | ".join(status) if status else "📦 registered"
 
 def get_model_registry_report(
-        api, 
-        registry_entity="chogerlate", 
-        project="wandb-registry-model", 
-        model_name="baq-forecastors"
+        api,
+        collection_path: str
     ):
     """
     Generate a comprehensive report of models in the W&B Model Registry.
@@ -92,11 +90,10 @@ def get_model_registry_report(
         List[Dict]: List of model information dictionaries
     """
     models_data = []
-    full_model_name = f"{registry_entity}/{project}/{model_name}"
     
     try:
         # Get models from registry
-        models = api.artifacts(type_name="model", name=full_model_name, per_page=100)
+        models = api.artifacts(type_name="model", name=collection_path, per_page=100)
         
         for model in models:
             model_info = {
@@ -128,13 +125,13 @@ def get_model_registry_report(
         print(f"Error fetching models: {e}")
         return []
 
-def generate_markdown_report(models_data, registry_entity, project, model_name):
+def generate_markdown_report(models_data, collection_path):
     """Generate a markdown report from model registry data"""
     
     with open("model_registry_report.md", "w") as f:
         # Header
-        f.write(f"# 🏆 Model Registry Report: {model_name}\n\n")
-        f.write(f"**Registry Path:** `{registry_entity}/{project}/{model_name}`\n")
+        f.write(f"# 🏆 Model Registry Report: {collection_path}\n\n")
+        f.write(f"**Registry Path:** `{collection_path}`\n")
         f.write(f"**Total Models:** {len(models_data)}\n")
         f.write(f"**Report Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} UTC\n\n")
         
@@ -257,10 +254,10 @@ def generate_markdown_report(models_data, registry_entity, project, model_name):
             
             # Quick actions
             f.write("**🔗 Quick Actions:**\n")
-            artifact_url = f"https://wandb.ai/{registry_entity}/{project}/artifacts/{model['name']}/{model['version']}"
+            artifact_url = f"https://wandb.ai/{collection_path}/artifacts/{model['name']}/{model['version']}"
             f.write(f"- [📦 View Model in Registry]({artifact_url})\n")
             if model['run']:
-                run_url = f"https://wandb.ai/{registry_entity}/{project}/runs/{run_id}"
+                run_url = f"https://wandb.ai/{collection_path}/runs/{run_id}"
                 f.write(f"- [📊 View Original Run]({run_url})\n")
             
             # Promotion/deployment options
@@ -277,7 +274,7 @@ def generate_markdown_report(models_data, registry_entity, project, model_name):
         f.write("import joblib\n\n")
         f.write("# Load production model\n")
         f.write(f"api = wandb.Api()\n")
-        f.write(f"artifact = api.artifact('{registry_entity}/{project}/{model_name}:production-latest', type='model')\n")
+        f.write(f"artifact = api.artifact('{collection_path}:production', type='model')\n")
         f.write("model_dir = artifact.download()\n")
         f.write("model = joblib.load(f'{model_dir}/model')\n\n")
         f.write("# Make predictions\n")
@@ -290,23 +287,17 @@ def generate_markdown_report(models_data, registry_entity, project, model_name):
 
 def main():
     parser = argparse.ArgumentParser(description="Generate W&B Model Registry Report")
-    parser.add_argument("--registry-entity", default=os.environ.get("WANDB_REGISTRY_ENTITY", "chogerlate"), 
-                        help="W&B registry entity name")
-    parser.add_argument("--project", default=os.environ.get("WANDB_PROJECT", "wandb-registry-model"), 
-                        help="W&B project name")
-    parser.add_argument("--model-name", default=os.environ.get("MODEL_NAME", "baq-forecastors"), 
-                        help="Model name in registry")
+    parser.add_argument("--collection-path", default=os.environ.get("WANDB_MODEL_REGISTRY_COLLECTION_PATH", "chogerlate/wandb-registry-model/baq-forecastors"), 
+                        help="W&B registry collection path")
     args = parser.parse_args()
     
     api = wandb.Api()
     models_data = get_model_registry_report(
         api,
-        registry_entity=args.registry_entity,
-        project=args.project,
-        model_name=args.model_name
+        collection_path=args.collection_path
     )
     
-    generate_markdown_report(models_data, args.registry_entity, args.project, args.model_name)
+    generate_markdown_report(models_data, args.collection_path)
     print(f"✅ Model registry report generated successfully: model_registry_report.md")
 
 if __name__ == "__main__":
