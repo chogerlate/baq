@@ -39,29 +39,29 @@ jobs:
         run: |
           if [[ "${{ github.event_name }}" == "issue_comment" ]]; then
             ISSUE_NUM="${{ github.event.issue.number }}"
-            # Extract custom parameters if provided in comment
             COMMENT="${{ github.event.comment.body }}"
             if [[ "$COMMENT" =~ /registry_report\ +([^ ]+)\ +([^ ]+)\ +([^ ]+) ]]; then
               REGISTRY_ENTITY="${BASH_REMATCH[1]}"
               PROJECT="${BASH_REMATCH[2]}"
               MODEL_NAME="${BASH_REMATCH[3]}"
+              COLLECTION_PATH="$REGISTRY_ENTITY/$PROJECT/$MODEL_NAME"
             else
-              REGISTRY_ENTITY=""
-              PROJECT=""
-              MODEL_NAME=""
+              COLLECTION_PATH="${{ secrets.WANDB_MODEL_REGISTRY_COLLECTION_PATH }}"
             fi
           else
             ISSUE_NUM="${{ github.event.inputs.issue_number }}"
             REGISTRY_ENTITY="${{ github.event.inputs.registry_entity }}"
             PROJECT="${{ github.event.inputs.project }}"
             MODEL_NAME="${{ github.event.inputs.model_name }}"
+            if [[ -n "$REGISTRY_ENTITY" && -n "$PROJECT" && -n "$MODEL_NAME" ]]; then
+              COLLECTION_PATH="$REGISTRY_ENTITY/$PROJECT/$MODEL_NAME"
+            else
+              COLLECTION_PATH="${{ secrets.WANDB_MODEL_REGISTRY_COLLECTION_PATH }}"
+            fi
           fi
-          
           echo "issue_number=$ISSUE_NUM" >> $GITHUB_OUTPUT
-          echo "registry_entity=$REGISTRY_ENTITY" >> $GITHUB_OUTPUT
-          echo "project=$PROJECT" >> $GITHUB_OUTPUT
-          echo "model_name=$MODEL_NAME" >> $GITHUB_OUTPUT
-          
+          echo "collection_path=$COLLECTION_PATH" >> $GITHUB_OUTPUT
+      
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
@@ -73,7 +73,7 @@ jobs:
       - name: Run registry report script
         env:
           WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
-          WANDB_MODEL_REGISTRY_COLLECTION_PATH: ${{ secrets.WANDB_MODEL_REGISTRY_COLLECTION_PATH }}
+          WANDB_MODEL_REGISTRY_COLLECTION_PATH: ${{ steps.params.outputs.collection_path }}
         run: |
           python action_files/get_registry_models.py
       
