@@ -31,6 +31,7 @@ jobs:
 
       - name: Extract parameters
         id: params
+        shell: bash
         run: |
           if [[ "${{ github.event_name }}" == "issue_comment" ]]; then
             COMMENT="${{ github.event.comment.body }}"
@@ -62,23 +63,54 @@ jobs:
         run: uv sync --all-extras
 
       - name: Register model
+        id: register
+        continue-on-error: true
         env:
           WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
           WANDB_MODEL_REGISTRY_COLLECTION_PATH: ${{ secrets.WANDB_MODEL_REGISTRY_COLLECTION_PATH }}
+          WANDB_PROJECT: ${{ secrets.WANDB_PROJECT }}
+          WANDB_ENTITY: ${{ secrets.WANDB_ENTITY }}
         run: |
           echo "🚀 Registering model from run: ${{ steps.params.outputs.run_id }}"
           uv run src/baq/action_files/register_model.py --run-id "${{ steps.params.outputs.run_id }}"
+          echo "status=success" >> $GITHUB_OUTPUT
 
-      - name: Comment on PR
-        if: steps.params.outputs.issue_number != ''
+      - name: Comment on PR (Success)
+        if: steps.params.outputs.issue_number != '' && steps.register.outputs.status == 'success'
         uses: peter-evans/create-or-update-comment@v3
         with:
           token: ${{ secrets.BOT_TOKEN }}
           issue-number: ${{ steps.params.outputs.issue_number }}
           body: |
-            🤖 Model registration workflow completed!
+            ✅ Model registration workflow completed successfully!
 
             - Run ID: `${{ steps.params.outputs.run_id }}`
             - [Workflow Logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
 
-            ✅ Check the logs for final registration status.
+            Check the logs for registration details.
+
+      - name: Comment on PR (Failure)
+        if: steps.params.outputs.issue_number != '' && steps.register.outcome == 'failure'
+        uses: peter-evans/create-or-update-comment@v3
+        with:
+          token: ${{ secrets.BOT_TOKEN }}
+          issue-number: ${{ steps.params.outputs.issue_number }}
+          body: |
+            ❌ Model registration failed!
+
+            - Run ID: `${{ steps.params.outputs.run_id }}`
+            - [Error Logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+            Common issues:
+            1. Invalid run ID
+            2. Run not found in project
+            3. Run not in finished state
+            4. No model artifacts in run
+            
+            Try using the full run path: `entity/project/${{ steps.params.outputs.run_id }}`
+            
+            Check the logs for detailed error messages.
+
+      - name: Set final status
+        if: steps.register.outcome == 'failure'
+        run: exit 1
