@@ -128,6 +128,24 @@ def get_model_registry_report(
 def generate_markdown_report(models_data, collection_path):
     """Generate a markdown report from model registry data"""
     
+    # Helper function to safely format dates
+    def format_date(date_value):
+        if not date_value:
+            return "Unknown"
+        if isinstance(date_value, str):
+            # Try to parse the string to datetime if needed
+            try:
+                from datetime import datetime
+                date_value = datetime.fromisoformat(date_value.replace('Z', '+00:00'))
+            except:
+                return date_value  # Return as-is if parsing fails
+        
+        # Now we can safely call strftime
+        try:
+            return date_value.strftime('%Y-%m-%d')
+        except:
+            return str(date_value)  # Fallback to string representation
+    
     with open("model_registry_report.md", "w") as f:
         # Header
         f.write(f"# 🏆 Model Registry Report: {collection_path}\n\n")
@@ -153,7 +171,7 @@ def generate_markdown_report(models_data, collection_path):
             if prod_model['run']:
                 f.write(f"**Model Name:** {prod_model['run']['name']}\n")
                 f.write(f"**Run ID:** `{prod_model['run']['id']}`\n")
-            f.write(f"**Deployed:** {prod_model['created_at'].strftime('%Y-%m-%d')}\n")
+            f.write(f"**Deployed:** {format_date(prod_model['created_at'])}\n")
             
             # Show metrics if available
             if prod_model['metrics'] and prod_model['metrics']['single_step_accuracy']:
@@ -171,7 +189,7 @@ def generate_markdown_report(models_data, collection_path):
             if staging_model['run']:
                 f.write(f"**Model Name:** {staging_model['run']['name']}\n")
                 f.write(f"**Run ID:** `{staging_model['run']['id']}`\n")
-            f.write(f"**Staged:** {staging_model['created_at'].strftime('%Y-%m-%d')}\n")
+            f.write(f"**Staged:** {format_date(staging_model['created_at'])}\n")
             
             # Show metrics if available
             if staging_model['metrics'] and staging_model['metrics']['single_step_accuracy']:
@@ -197,7 +215,7 @@ def generate_markdown_report(models_data, collection_path):
         for model in sorted_models:
             metrics = model['metrics'] or {}
             model_name = model['run']['name'] if model['run'] else "Unknown"
-            created_date = model['created_at'].strftime('%Y-%m-%d') if model['created_at'] else "Unknown"
+            created_date = format_date(model['created_at'])
             
             # Format metrics
             single_acc = f"{metrics.get('single_step_accuracy', 0):.3f}" if metrics.get('single_step_accuracy') is not None else "N/A"
@@ -208,7 +226,7 @@ def generate_markdown_report(models_data, collection_path):
             # Add performance emoji
             perf_emoji = get_performance_emoji(metrics.get('single_step_accuracy'))
             
-            f.write(f"| v{model['version']} | {model['status']} | {perf_emoji} {model_name} | {single_acc} | {multi_acc} | {single_mape} | {multi_mape} | {created_date} |\n")
+            f.write(f"|{model['version']} | {model['status']} | {perf_emoji} {model_name} | {single_acc} | {multi_acc} | {single_mape} | {multi_mape} | {created_date} |\n")
         
         # Detailed model analysis
         f.write("\n## 🔍 Detailed Model Analysis\n\n")
@@ -226,7 +244,7 @@ def generate_markdown_report(models_data, collection_path):
             f.write(f"- **Name:** {model_name}\n")
             f.write(f"- **Version:** v{model['version']}\n")
             f.write(f"- **Aliases:** {', '.join(model['aliases']) if model['aliases'] else 'None'}\n")
-            f.write(f"- **Created:** {model['created_at']}\n")
+            f.write(f"- **Created:** {format_date(model['created_at'])}\n")
             if model['run']:
                 f.write(f"- **Run ID:** `{run_id}`\n")
                 f.write(f"- **Run Status:** {model['run']['state']}\n")
@@ -254,11 +272,8 @@ def generate_markdown_report(models_data, collection_path):
             
             # Quick actions
             f.write("**🔗 Quick Actions:**\n")
-            artifact_url = f"https://wandb.ai/{collection_path}/artifacts/{model['name']}/{model['version']}"
+            artifact_url = f"https://wandb.ai/{collection_path}/artifacts/{model['name']}"
             f.write(f"- [📦 View Model in Registry]({artifact_url})\n")
-            if model['run']:
-                run_url = f"https://wandb.ai/{collection_path}/runs/{run_id}"
-                f.write(f"- [📊 View Original Run]({run_url})\n")
             
             # Promotion/deployment options
             f.write("\n**🚀 Deployment Options:**\n")
