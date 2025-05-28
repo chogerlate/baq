@@ -25,3 +25,4 @@ mlruns/
 mlartifacts/
 outputs/
 /data/
+/wandb/
