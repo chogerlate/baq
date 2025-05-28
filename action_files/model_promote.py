@@ -18,7 +18,8 @@ def setup_logging() -> logging.Logger:
 def promote_model(
     run_id: str,
     target: str = "staging",
-    entity: str = "chogerlate", 
+    entity: str = "baq", 
+    registry_entity: str = "chogerlate", 
     project: str = "wandb-registry-model",
     model_name: str = "baq-forecastors",
     api_key: Optional[str] = None
@@ -56,10 +57,10 @@ def promote_model(
             raise ValueError("W&B API key must be provided via parameter or WANDB_API_KEY environment variable")
             
         api = wandb.Api(api_key=api_key_to_use)
-        logger.info(f"Initialized W&B API for entity: {entity}")
+        logger.info(f"Initialized W&B API for entity: {registry_entity}")
         
         # Get the run
-        run_path = f"{entity}/{project}/{run_id}"
+        run_path = f"{registry_entity}/{project}/{run_id}"
         logger.info(f"Fetching run: {run_path}")
         
         try:
@@ -106,7 +107,7 @@ def promote_model(
             "model_version": model_artifact.version,
             "target_environment": target,
             "aliases": [alias, version_alias],
-            "artifact_path": f"{entity}/{project}/{model_artifact.name}:{model_artifact.version}",
+            "artifact_path": f"{registry_entity}/{project}/{model_artifact.name}:{model_artifact.version}",
             "promotion_time": model_artifact.updated_at.isoformat() if model_artifact.updated_at else None
         }
         
@@ -134,6 +135,7 @@ def main():
     parser = argparse.ArgumentParser(description="Promote ML model using W&B")
     parser.add_argument("--run-id", required=True, help="W&B run ID")
     parser.add_argument("--target", default="staging", help="Target environment")
+    parser.add_argument("--registry-entity", default=None, help="W&B registry entity")
     parser.add_argument("--entity", default="chogerlate", help="W&B entity")
     parser.add_argument("--project", default="wandb-registry-model", help="W&B project")
     parser.add_argument("--model-name", default="baq-forecastors", help="Model name")
@@ -145,7 +147,8 @@ def main():
         target=args.target,
         entity=args.entity,
         project=args.project,
-        model_name=args.model_name
+        model_name=args.model_name,
+        registry_entity=args.registry_entity
     )
     
     if result["status"] == "error":
