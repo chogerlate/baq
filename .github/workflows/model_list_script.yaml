@@ -1,50 +1,120 @@
-name: Get WandB Runs
+name: Model Registry Report
+
 on:
   issue_comment:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      registry_entity:
+        description: 'W&B registry entity'
+        required: false
+        default: ''
+      project:
+        description: 'W&B project name'
+        required: false
+        default: ''
+      model_name:
+        description: 'Model name in registry'
+        required: false
+        default: ''
+      issue_number:
+        description: 'PR number to comment on (for manual runs)'
+        required: false
+        type: number
 
 jobs:
-  get-runs:
-    if: github.event.issue.pull_request != null && contains(github.event.comment.body, '/wandb_list_model')
+  get-registry-models:
+    if: |
+      (github.event_name == 'issue_comment' && 
+       github.event.issue.pull_request && 
+       contains(github.event.comment.body, '/registry_report')) || 
+      github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         
-      - name: Get PR info from comment
-        id: chatops
-        uses: machine-learning-apps/actions-chatops@master
-        with:
-          TRIGGER_PHRASE: "/wandb_list_model"
-        env:
-          GITHUB_TOKEN: ${{ secrets.BOT_TOKEN }}
+      - name: Extract parameters
+        id: params
+        run: |
+          if [[ "${{ github.event_name }}" == "issue_comment" ]]; then
+            ISSUE_NUM="${{ github.event.issue.number }}"
+            # Extract custom parameters if provided in comment
+            COMMENT="${{ github.event.comment.body }}"
+            if [[ "$COMMENT" =~ /registry_report\ +([^ ]+)\ +([^ ]+)\ +([^ ]+) ]]; then
+              REGISTRY_ENTITY="${BASH_REMATCH[1]}"
+              PROJECT="${BASH_REMATCH[2]}"
+              MODEL_NAME="${BASH_REMATCH[3]}"
+            else
+              REGISTRY_ENTITY=""
+              PROJECT=""
+              MODEL_NAME=""
+            fi
+          else
+            ISSUE_NUM="${{ github.event.inputs.issue_number }}"
+            REGISTRY_ENTITY="${{ github.event.inputs.registry_entity }}"
+            PROJECT="${{ github.event.inputs.project }}"
+            MODEL_NAME="${{ github.event.inputs.model_name }}"
+          fi
+          
+          echo "issue_number=$ISSUE_NUM" >> $GITHUB_OUTPUT
+          echo "registry_entity=$REGISTRY_ENTITY" >> $GITHUB_OUTPUT
+          echo "project=$PROJECT" >> $GITHUB_OUTPUT
+          echo "model_name=$MODEL_NAME" >> $GITHUB_OUTPUT
           
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.9'
+          python-version: '3.10'
           
-      - name: Install wandb
+      - name: Install dependencies
         run: pip install wandb
         
-      - name: Run model listing script
+      - name: Run registry report script
         env:
           WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
           WANDB_ENTITY: ${{ secrets.WANDB_ENTITY }}
+          WANDB_REGISTRY_ENTITY: ${{ secrets.WANDB_REGISTRY_ENTITY }}
           WANDB_PROJECT: ${{ secrets.WANDB_PROJECT }}
-        run: python action_files/list_runs.py
-        
-      - name: Debug - Show generated markdown
+          MODEL_NAME: ${{ secrets.WANDB_MODEL_NAME || 'baq-forecastors' }}
         run: |
-          echo "Generated markdown content:"
-          cat wandb_summary.md
+          # Add custom parameters if provided
+          REGISTRY_ENTITY_ARG=""
+          PROJECT_ARG=""
+          MODEL_ARG=""
           
-      - name: Install GitHub CLI
-        run: |
-          sudo apt update
-          sudo apt install gh -y
+          if [ -n "${{ steps.params.outputs.registry_entity }}" ]; then
+            REGISTRY_ENTITY_ARG="--registry-entity ${{ steps.params.outputs.registry_entity }}"
+          fi
           
-      - name: Comment to PR
-        env:
-          GH_TOKEN: ${{ secrets.BOT_TOKEN }}
+          if [ -n "${{ steps.params.outputs.project }}" ]; then
+            PROJECT_ARG="--project ${{ steps.params.outputs.project }}"
+          fi
+          
+          if [ -n "${{ steps.params.outputs.model_name }}" ]; then
+            MODEL_ARG="--model-name ${{ steps.params.outputs.model_name }}"
+          fi
+          
+          # Run the script
+          python action_files/list_runs.py $REGISTRY_ENTITY_ARG $PROJECT_ARG $MODEL_ARG
+      
+      - name: Debug - Show generated report
         run: |
-          gh pr comment ${{ github.event.issue.number }} --body-file wandb_summary.md
+          echo "Generated report content:"
+          cat model_registry_report.md || echo "Report file not found. Checking for alternative file..."
+          ls -la *.md
+          
+      - name: Comment on PR
+        if: steps.params.outputs.issue_number != ''
+        uses: peter-evans/create-or-update-comment@v3
+        with:
+          token: ${{ secrets.BOT_TOKEN }}
+          issue-number: ${{ steps.params.outputs.issue_number }}
+          body-file: model_registry_report.md
+          
+    #   - name: Upload report as artifact
+    #     uses: actions/upload-artifact@v3
+    #     with:
+    #       name: model-registry-report
+    #       path: model_registry_report.md
+    #       retention-days: 90
