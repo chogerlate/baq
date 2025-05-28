@@ -1,5 +1,5 @@
 # Global Configuration
-experiment_tracking_status: true
+experiment_tracking_status: false
 
 # Data Configuration
 data:
@@ -7,7 +7,7 @@ data:
 
 # Model Configuration
 model:
-  model_type: "random_forest" # Options: "random_forest", "xgboost", "lstm"
+  model_type: "lstm" # Options: "random_forest", "xgboost", "lstm"
   random_forest:
     model_params:
       n_estimators: 50
@@ -27,13 +27,12 @@ model:
   lstm:
     model_params:
       n_layers: 2
-      hidden_size: 128
+      hidden_size: 512
       dropout: 0.2
     training_params:
-      sequence_length: 24
       learning_rate: 0.001
-      batch_size: 32
-      epochs: 100
+      batch_size: 64
+      epochs: 2
       early_stopping_patience: 10
       reduce_lr_patience: 5
 
@@ -43,7 +42,7 @@ artifacts:
   base_path: "./artifacts"
   model:
     path: "models"
-    filename: "best_model.pkl"
+    filename: "best_model.joblib"
   processors:
     path: "processors"
     filename: "processor.joblib"
@@ -60,6 +59,7 @@ artifacts:
 # Training Configuration
 training:
   forecast_horizon: 24
+  sequence_length: 24
   target_column: "pm2_5_(μg/m³)"
   n_splits: 5
   test_size: 0.2
@@ -68,5 +68,5 @@ training:
 wandb:
   tags: ["pm2.5", "forecasting", "air-quality", "training"]
   log_model: true
-  register_model: true # Set to true to register the model in wandb
+  register_model: false # Set to true to register the model in wandb
   job_type: "training"
