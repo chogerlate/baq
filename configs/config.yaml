@@ -3,7 +3,7 @@ experiment_tracking_status: true
 
 # Data Configuration
 data:
-  raw_data_path: "../../../data/raw_data/baq_dataset.csv"
+  raw_data_path: "/home/chogerlate/Documents/github/cpe393/baq/data/raw_data/raw_data_2025_05_25.csv"
 
 # Model Configuration
 model:
@@ -66,8 +66,7 @@ training:
   random_state: 42
 
 wandb:
-  project: "pm25-forecasting"
-  entity: null  # Set your wandb username/team
-  tags: ["pm2.5", "forecasting", "air-quality"]
+  tags: ["pm2.5", "forecasting", "air-quality", "training"]
   log_model: true
-  register_model: false
+  register_model: true # Set to true to register the model in wandb
+  job_type: "training"
