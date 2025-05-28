@@ -1,0 +1,86 @@
+name: Register Model to W&B Registry
+
+on:
+  # Manual trigger
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: 'W&B Run ID to register'
+        required: true
+      collection_path:
+        description: 'W&B Registry collection path (entity/project/model-name)'
+        required: false
+        default: 'chogerlate/wandb-registry-model/baq-forecastors'
+  
+  # Trigger on PR comment containing /register_model
+  issue_comment:
+    types: [created]
+
+jobs:
+  register-model:
+    # Only run on PR comments containing the command
+    if: |
+      (github.event_name == 'workflow_dispatch') ||
+      (github.event_name == 'issue_comment' && 
+       github.event.issue.pull_request && 
+       contains(github.event.comment.body, '/register_model'))
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.5.31"
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: "pyproject.toml"
+      
+      - name: Install the project
+        run: uv sync --all-extras
+      
+      - name: Extract run ID from comment
+        if: github.event_name == 'issue_comment'
+        id: extract-run-id
+        run: |
+          COMMENT="${{ github.event.comment.body }}"
+          # Extract run ID after /register_model command
+          RUN_ID=$(echo "$COMMENT" | grep -oP '/register_model\s+\K[^\s]+')
+          echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
+      
+      - name: Register model
+        env:
+          WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
+          WANDB_MODEL_REGISTRY_COLLECTION_PATH: ${{ github.event.inputs.collection_path || 'chogerlate/wandb-registry-model/baq-forecastors' }}
+        run: |
+          RUN_ID="${{ github.event.inputs.run_id || steps.extract-run-id.outputs.run_id }}"
+          if [ -z "$RUN_ID" ]; then
+            echo "❌ No run ID provided"
+            exit 1
+          fi
+          echo "🚀 Registering model from run: $RUN_ID"
+          uv run src/baq/action_files/register_model.py --run-id "$RUN_ID"
+      
+      - name: Comment on PR
+        if: github.event_name == 'issue_comment'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const runId = process.env.RUN_ID;
+            const workflowUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `🤖 Model registration workflow completed!\n\n` +
+                    `- Run ID: \`${runId}\`\n` +
+                    `- Workflow: [View logs](${workflowUrl})\n\n` +
+                    `Check the workflow logs for registration status.`
+            });
