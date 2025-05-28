@@ -8,7 +8,8 @@ from xgboost import XGBRegressor
 
 from baq.core.evaluation import calculate_metrics
 from baq.data.utils import create_sequences
-from baq.models.lstm import create_lstm_model, create_lstm_callbacks
+from baq.models.lstm import LSTMForecaster
+
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
@@ -22,6 +23,7 @@ def train_model(
     y_test: pd.Series,
     model_name: str,
     model_params: dict,
+    model_training_params: dict,
     training_config: dict
 ) -> Tuple[object, dict]:
     """
@@ -38,7 +40,9 @@ def train_model(
         y_test: Test target
         model_name: Name of the model to train (e.g., "xgboost", "random_forest", "lstm")
         model_params: Parameters for the model
-        training_config: Configuration for training (e.g., epochs, batch size)
+        model_training_params: Configuration for training (e.g., epochs, batch size)
+        training_config: Configuration for training 
+
     Returns:
         model: Trained model
         metrics: Evaluation metrics
@@ -59,27 +63,32 @@ def train_model(
         seq_len = int(training_config.get("sequence_length", 24))
         # 1) create sequence
         X_tr_seq, y_tr_seq = create_sequences(X_train, y_train, seq_len)
-        X_val_seq, y_val_seq = create_sequences(X_val,   y_val,   seq_len)
-        X_te_seq,  y_te_seq  = create_sequences(X_test,  y_test,  seq_len)
+        X_val_seq, y_val_seq = create_sequences(X_val, y_val, seq_len)
+        X_te_seq, y_te_seq = create_sequences(X_test, y_test, seq_len)
 
         # 2) build & train LSTM
-        model = create_lstm_model(input_shape=(seq_len, X_train.shape[1]))
-        callbacks = create_lstm_callbacks(
-            early_stopping_patience=int(training_config.get("early_stopping_patience", 10)),
-            reduce_lr_patience=int(training_config.get("reduce_lr_patience", 5))
-        )
+        lstm_params = {
+            "input_shape": (seq_len, X_train.shape[1]),
+            "lstm_units": model_params.get("lstm_units", (128, 64)),
+            "dropout_rate": model_params.get("dropout_rate", 0.2),
+            "learning_rate": model_params.get("learning_rate", 1e-3),
+            "checkpoint_path": model_params.get("checkpoint_path", "best_lstm.h5"),
+            "early_stopping_patience": int(model_training_params.get("early_stopping_patience", 10)),
+            "reduce_lr_patience": int(model_training_params.get("reduce_lr_patience", 5))
+        }
+        
+        model = LSTMForecaster(**lstm_params)
         model.fit(
             X_tr_seq, y_tr_seq,
             validation_data=(X_val_seq, y_val_seq),
-            epochs=int(training_config.get("epochs", 50)),
-            batch_size=int(training_config.get("batch_size", 32)),
-            callbacks=callbacks,
+            epochs=int(model_training_params.get("epochs", 50)),
+            batch_size=int(model_training_params.get("batch_size", 32)),
             shuffle=False,
             verbose=1
         )
 
         # 3) evaluate
-        preds = model.predict(X_te_seq).reshape(-1)
+        preds = model.predict(X_te_seq)
         metrics = calculate_metrics(y_te_seq, preds)
         return model, metrics
 
