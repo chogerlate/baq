@@ -1,10 +1,12 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from tensorflow.keras.models import Model as KerasModel
+from keras.models import Model as KerasModel
+from typing import Dict, Tuple, Any
 
 from baq.core.evaluation import calculate_metrics
 from baq.core.inference import single_step_forecasting, multi_step_forecasting
+from baq.models.lstm import LSTMForecaster
 
 
 def evaluate_model(
@@ -13,12 +15,22 @@ def evaluate_model(
     y_test: pd.Series,
     forecast_horizon: int,
     sequence_length: int
-) -> tuple[dict, dict, dict]:
+) -> Tuple[Dict[str, float], Dict[str, float], Dict[str, plt.Figure]]:
     """
-    Evaluate the model on test data:
-      - single-step: ใช้ single_step_forecasting()
-      - multi-step: ใช้ multi_step_forecasting()
-    Return (single_step_metrics, multi_step_metrics, plots)
+    Evaluate the model on test data using both single-step and multi-step forecasting.
+
+    Args:
+        model: The trained model (LSTMForecaster, Keras Model, sklearn, or XGBoost)
+        X_test: Test features DataFrame
+        y_test: Test target Series
+        forecast_horizon: Number of steps for multi-step forecasting
+        sequence_length: Length of sequence for LSTM models
+
+    Returns:
+        Tuple containing:
+        - single_step_metrics: Dict of metrics for single-step forecasting
+        - multi_step_metrics: Dict of metrics for multi-step forecasting
+        - plots: Dict of matplotlib figures for visualization
     """
     plots = {}
 
@@ -29,7 +41,8 @@ def evaluate_model(
         sequence_length=sequence_length
     )
 
-    if isinstance(model, KerasModel):
+    # Handle sequence offset for LSTM models
+    if isinstance(model, (KerasModel, LSTMForecaster)):
         y_true = y_test.iloc[sequence_length:]
     else:
         y_true = y_test
