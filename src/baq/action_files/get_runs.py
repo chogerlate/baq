@@ -212,26 +212,32 @@ def list_runs(api: wandb.Api, entity: str, project: str, limit: int = 50, filter
         return []
 
 def generate_markdown_report(runs_data: List[Dict], entity: str, project: str, filters: Dict = None):
-    """Generate a markdown report from runs data."""
+    """Generate a concise markdown report from runs data with only essential information."""
     
     with open("runs_report.md", "w") as f:
         f.write(f"# 🏃 W&B Runs Report: {entity}/{project}\n\n")
-        f.write(f"**Project Path:** `{entity}/{project}`\n")
-        f.write(f"**Total Runs:** {len(runs_data)}\n")
-        if filters:
-            f.write(f"**Filters Applied:** {filters}\n")
-        f.write(f"**Report Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} UTC\n\n")
+        f.write(f"**Total Runs:** {len(runs_data)} | **Report Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n")
         
         if not runs_data:
             f.write("❌ No runs found in project.\n\n")
             return
 
-        # Performance Leaderboard
-        f.write("## 📈 Run Performance Leaderboard\n\n")
-        f.write("| Status | Registration | Run Name | Single-Acc | Multi-Acc | Single-MAPE | Multi-MAPE | Runtime | Created |\n")
-        f.write("|--------|--------------|----------|------------|-----------|-------------|------------|---------|--------|\n")
+        # Quick Summary Stats
+        registered_runs = [run for run in runs_data if run['model_artifacts'] > 0]
+        unregistered_runs = [run for run in runs_data if run['model_artifacts'] == 0]
+        finished_runs = [run for run in runs_data if run['state'] == 'finished']
+        
+        f.write("## 📊 Quick Summary\n\n")
+        f.write(f"- ✅ **Finished**: {len(finished_runs)}/{len(runs_data)} runs\n")
+        f.write(f"- 📦 **Registered**: {len(registered_runs)}/{len(runs_data)} runs ({len(registered_runs)/len(runs_data)*100:.0f}%)\n")
+        f.write(f"- 🤖 **Total Models**: {sum(run['model_artifacts'] for run in runs_data)}\n\n")
 
-        # Sort runs by performance (single step accuracy) or creation date
+        # Top 10 Performance Leaderboard (most important section)
+        f.write("## 🏆 Top 10 Performance Leaderboard\n\n")
+        f.write("| Rank | Run Name | Run ID | Single-Acc | Multi-Acc | Models | Status |\n")
+        f.write("|------|----------|--------|------------|-----------|--------|--------|\n")
+
+        # Sort runs by performance
         sorted_runs = sorted(
             runs_data,
             key=lambda x: (
@@ -241,143 +247,62 @@ def generate_markdown_report(runs_data: List[Dict], entity: str, project: str, f
             reverse=True
         )
 
-        for run in sorted_runs:
+        for i, run in enumerate(sorted_runs[:10], 1):
             metrics = run['metrics'] or {}
             status_emoji = get_status_emoji(run['state'])
-            perf_emoji = get_performance_emoji(metrics.get('single_step_accuracy'))
             reg_emoji = get_registration_emoji(run['model_artifacts'])
             
             # Format metrics
             single_acc = f"{metrics.get('single_step_accuracy', 0):.3f}" if metrics.get('single_step_accuracy') is not None else "N/A"
             multi_acc = f"{metrics.get('multi_step_accuracy', 0):.3f}" if metrics.get('multi_step_accuracy') is not None else "N/A"
-            single_mape = f"{metrics.get('single_step_mape', 0):.2f}%" if metrics.get('single_step_mape') is not None else "N/A"
-            multi_mape = f"{metrics.get('multi_step_mape', 0):.2f}%" if metrics.get('multi_step_mape') is not None else "N/A"
-            runtime = format_runtime(metrics.get('runtime'))
-            created = format_date(run['created_at'])
             
-            # Compose run name with emojis
-            full_run_name = f"{perf_emoji} [{run['display_name']}]({run['url']})"
+            # Compose run name with link
+            run_name = f"[{run['display_name']}]({run['url']})"
             
-            f.write(f"| {status_emoji} {run['state']} | {reg_emoji} {run['model_artifacts']} | {full_run_name} | {single_acc} | {multi_acc} | {single_mape} | {multi_mape} | {runtime} | {created} |\n")
+            f.write(f"| {i} | {run_name} | `{run['id']}` | {single_acc} | {multi_acc} | {reg_emoji}{run['model_artifacts']} | {status_emoji}{run['state']} |\n")
 
-        # Registration Status Summary
-        f.write("\n## 📦 Registration Status Summary\n\n")
-        registered_runs = [run for run in runs_data if run['model_artifacts'] > 0]
-        unregistered_runs = [run for run in runs_data if run['model_artifacts'] == 0]
-        
-        f.write(f"- 📦 **Registered Runs**: {len(registered_runs)} / {len(runs_data)} ({len(registered_runs)/len(runs_data)*100:.1f}%)\n")
-        f.write(f"- ❌ **Unregistered Runs**: {len(unregistered_runs)} / {len(runs_data)} ({len(unregistered_runs)/len(runs_data)*100:.1f}%)\n")
-        
-        total_models = sum(run['model_artifacts'] for run in runs_data)
-        f.write(f"- 🤖 **Total Models**: {total_models}\n\n")
-        
-        # Unregistered Runs Details
-        if unregistered_runs:
-            f.write("### ❌ Unregistered Runs (No Models)\n\n")
-            f.write("| Status | Run Name | User | Created | State |\n")
-            f.write("|--------|----------|------|---------|-------|\n")
+        # Problem Runs (Failed/Crashed) - Important for debugging
+        problem_runs = [run for run in runs_data if run['state'] in ['failed', 'crashed', 'killed']]
+        if problem_runs:
+            f.write(f"\n## ⚠️ Problem Runs ({len(problem_runs)})\n\n")
+            f.write("| Run Name | Run ID | Status | User | Created |\n")
+            f.write("|----------|--------|--------|------|--------|\n")
             
-            for run in unregistered_runs[:10]:  # Show first 10
+            for run in problem_runs[:5]:  # Show only first 5
                 status_emoji = get_status_emoji(run['state'])
                 created = format_date(run['created_at'])
                 run_link = f"[{run['display_name']}]({run['url']})"
                 
-                f.write(f"| {status_emoji} | {run_link} | {run['user']} | {created} | {run['state']} |\n")
+                f.write(f"| {run_link} | `{run['id']}` | {status_emoji}{run['state']} | {run['user']} | {created} |\n")
             
-            if len(unregistered_runs) > 10:
-                f.write(f"\n*... and {len(unregistered_runs) - 10} more unregistered runs*\n")
-            f.write("\n")
-        
-        # Registered Runs Details
-        if registered_runs:
-            f.write("### 🤖 Registered Runs (With Models)\n\n")
-            f.write("| Status | Run Name | Model Registration Status | User | Created |\n")
-            f.write("|--------|----------|---------------------------|------|--------|\n")
-            
-            # Sort by model count (most models first)
-            registered_runs_sorted = sorted(registered_runs, key=lambda x: x['model_artifacts'], reverse=True)
-            
-            for run in registered_runs_sorted[:10]:  # Show first 10
-                status_emoji = get_status_emoji(run['state'])
-                created = format_date(run['created_at'])
-                run_link = f"[{run['display_name']}]({run['url']})"
-                
-                # Use the detailed model registration status
-                reg_status = run['model_registration']
-                
-                f.write(f"| {status_emoji} | {run_link} | {reg_status} | {run['user']} | {created} |\n")
-            
-            if len(registered_runs) > 10:
-                f.write(f"\n*... and {len(registered_runs) - 10} more registered runs*\n")
-            f.write("\n")
-            
-            # Show detailed model information for top registered runs
-            f.write("#### 📋 Model Details for Top Registered Runs\n\n")
-            for i, run in enumerate(registered_runs_sorted[:5], 1):
-                f.write(f"**{i}. {run['display_name']}** ({run['id']})\n")
-                if run['model_details']:
-                    for model_detail in run['model_details']:
-                        f.write(f"  - `{model_detail}`\n")
-                f.write("\n")
+            if len(problem_runs) > 5:
+                f.write(f"\n*... and {len(problem_runs) - 5} more problem runs*\n")
 
-        # Run Status Summary
-        f.write("\n## 📊 Run Status Summary\n\n")
-        status_counts = {}
-        for run in runs_data:
-            state = run['state']
-            status_counts[state] = status_counts.get(state, 0) + 1
+        # Unregistered High-Performance Runs (Action needed)
+        high_perf_unregistered = [
+            run for run in unregistered_runs 
+            if run['metrics']['single_step_accuracy'] is not None and run['metrics']['single_step_accuracy'] > 0.8
+        ]
         
-        for state, count in sorted(status_counts.items()):
-            emoji = get_status_emoji(state)
-            f.write(f"- {emoji} **{state.title()}**: {count} runs\n")
-
-        # Top Performers
-        f.write("\n## 🏆 Top Performing Runs\n\n")
-        top_runs = [run for run in sorted_runs[:5] if run['metrics']['single_step_accuracy'] is not None]
-        
-        if top_runs:
-            for i, run in enumerate(top_runs, 1):
+        if high_perf_unregistered:
+            f.write(f"\n## 🎯 High-Performance Unregistered Runs ({len(high_perf_unregistered)})\n")
+            f.write("*These runs have good performance but no registered models - consider registering them*\n\n")
+            f.write("| Run Name | Run ID | Single-Acc | Multi-Acc | User |\n")
+            f.write("|----------|--------|------------|-----------|------|\n")
+            
+            for run in sorted(high_perf_unregistered, key=lambda x: x['metrics']['single_step_accuracy'], reverse=True)[:5]:
                 metrics = run['metrics']
-                f.write(f"### {i}. {run['display_name']}\n")
-                f.write(f"- **Run ID**: `{run['id']}`\n")
-                f.write(f"- **Status**: {get_status_emoji(run['state'])} {run['state']}\n")
-                f.write(f"- **User**: {run['user']}\n")
-                f.write(f"- **Single-Step Accuracy**: {metrics['single_step_accuracy']:.3f}\n")
-                multi_step_acc = f"{metrics['multi_step_accuracy']:.3f}" if metrics['multi_step_accuracy'] is not None else "N/A"
-                f.write(f"- **Multi-Step Accuracy**: {multi_step_acc}\n")
-                f.write(f"- **Runtime**: {format_runtime(metrics['runtime'])}\n")
-                f.write(f"- **Models**: {run['model_artifacts']} models\n")
-                if run['tags']:
-                    f.write(f"- **Tags**: {', '.join(run['tags'])}\n")
-                f.write(f"- **URL**: {run['url']}\n\n")
-        else:
-            f.write("No runs with performance metrics found.\n\n")
+                single_acc = f"{metrics['single_step_accuracy']:.3f}"
+                multi_acc = f"{metrics['multi_step_accuracy']:.3f}" if metrics['multi_step_accuracy'] is not None else "N/A"
+                run_link = f"[{run['display_name']}]({run['url']})"
+                
+                f.write(f"| {run_link} | `{run['id']}` | {single_acc} | {multi_acc} | {run['user']} |\n")
 
-        # Recent Activity
-        f.write("## 🕒 Recent Activity\n\n")
-        recent_runs = sorted(runs_data, key=lambda x: x['created_at'] or datetime.min, reverse=True)[:10]
-        
-        f.write("| Status | Run Name | User | Created | State |\n")
-        f.write("|--------|----------|------|---------|-------|\n")
-        
-        for run in recent_runs:
-            status_emoji = get_status_emoji(run['state'])
-            created = format_date(run['created_at'])
-            run_link = f"[{run['display_name']}]({run['url']})"
-            
-            f.write(f"| {status_emoji} | {run_link} | {run['user']} | {created} | {run['state']} |\n")
-
-        # Usage Instructions
-        f.write("\n## 🔧 Usage Instructions\n\n")
-        f.write("### Available Commands\n")
-        f.write("- `/runs_report` - Generate this report for the default project\n")
-        f.write("- `/runs_report <entity> <project>` - Generate report for specific project\n")
-        f.write("- `/runs_report <entity> <project> <limit>` - Generate report with custom limit\n\n")
-        f.write("### Filtering Runs\n")
-        f.write("You can filter runs by:\n")
-        f.write("- State: `finished`, `running`, `failed`, `crashed`\n")
-        f.write("- Tags: Add tags to your runs for better organization\n")
-        f.write("- Date range: Filter by creation or update date\n\n")
+        # Usage Instructions (simplified)
+        f.write("\n## 🔧 Quick Actions\n\n")
+        f.write("- **Register a model**: Use run ID from high-performance unregistered runs\n")
+        f.write("- **Debug failures**: Check problem runs section for failed experiments\n")
+        f.write("- **Compare models**: Use performance leaderboard for model selection\n")
 
 def main():
     parser = argparse.ArgumentParser(description="Generate W&B Runs Report")
