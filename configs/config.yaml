@@ -30,9 +30,12 @@ model:
       hidden_size: 128
       dropout: 0.2
     training_params:
+      sequence_length: 24
       learning_rate: 0.001
       batch_size: 32
       epochs: 100
+      early_stopping_patience: 10
+      reduce_lr_patience: 5
 
 
 # Artifacts Configuration
@@ -58,14 +61,9 @@ artifacts:
 training:
   forecast_horizon: 24
   target_column: "pm2_5_(μg/m³)"
-  sequence_length: 24
   n_splits: 5
   test_size: 0.2
   random_state: 42
-  epochs: 200
-  batch_size: 32
-  early_stopping_patience: 10
-  reduce_lr_patience: 5
 
 wandb:
   project: "pm25-forecasting"
