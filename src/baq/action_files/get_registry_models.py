@@ -89,7 +89,7 @@ def get_alias_status(aliases, version):
     return ", ".join(status)
 
 def generate_markdown_report(models_data, collection_path):
-    """Generate a markdown report from model registry data using the new list_models structure."""
+    """Generate a concise markdown report from model registry data with only essential information."""
     
     # Helper function to safely format dates
     def format_date(date_value):
@@ -106,43 +106,87 @@ def generate_markdown_report(models_data, collection_path):
         except:
             return str(date_value)
 
-
     with open("model_registry_report.md", "w") as f:
-        f.write(f"# 🏆 Model Registry Report: {collection_path}\n\n")
-        f.write(f"**Registry Path:** `{collection_path}`\n")
-        f.write(f"**Total Models:** {len(models_data)}\n")
-        f.write(f"**Report Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} UTC\n\n")
+        f.write(f"# 🏆 Model Registry: {collection_path}\n\n")
+        f.write(f"**Total Models:** {len(models_data)} | **Report Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n")
+        
         if not models_data:
             f.write("❌ No models found in registry.\n\n")
             return
 
-        f.write("## 📈 Model Performance Leaderboard\n\n")
-        f.write("| Status | Model Name | Single-Acc | Multi-Acc | Single-MAPE | Multi-MAPE | Created |\n")
-        f.write("|--------|------------|------------|-----------|-------------|------------|--------|\n")
+        # Quick Summary
+        production_models = [m for m in models_data if 'production' in [alias.lower() for alias in m['aliases']]]
+        staging_models = [m for m in models_data if 'staging' in [alias.lower() for alias in m['aliases']]]
+        
+        f.write("## 📊 Quick Summary\n\n")
+        f.write(f"- 🚀 **Production Models**: {len(production_models)}\n")
+        f.write(f"- 🧪 **Staging Models**: {len(staging_models)}\n")
+        f.write(f"- 📦 **Total Versions**: {len(models_data)}\n\n")
 
-        # Sort models by performance (if metrics available) or version
+        # Top 10 Performance Leaderboard
+        f.write("## 🏆 Top 10 Model Performance\n\n")
+        f.write("| Rank | Model Name | Version | Single-Acc | Multi-Acc | Status | Created |\n")
+        f.write("|------|------------|---------|------------|-----------|--------|--------|\n")
+
+        # Sort models by performance
         sorted_models = sorted(
             models_data,
             key=lambda x: (x['metrics']['single_step_accuracy'] or 0) if x['metrics'] else 0,
             reverse=True
         )
 
-        for model in sorted_models:
+        for i, model in enumerate(sorted_models[:10], 1):
             metrics = model['metrics'] or {}
             model_name = model['run']['name'] if model['run'] else "Unknown"
             version = model['version']
             created_date = format_date(model['created_at'])
             status = get_alias_status(model['aliases'], version)
-            perf_emoji = get_performance_emoji(metrics.get('single_step_accuracy'))
-            # Compose model name with emoji and version
-            full_model_name = f"{perf_emoji} {model_name}"
+            
             single_acc = f"{metrics.get('single_step_accuracy', 0):.3f}" if metrics.get('single_step_accuracy') is not None else "N/A"
             multi_acc = f"{metrics.get('multi_step_accuracy', 0):.3f}" if metrics.get('multi_step_accuracy') is not None else "N/A"
-            single_mape = f"{metrics.get('single_step_mape', 0):.2f}%" if metrics.get('single_step_mape') is not None else "N/A"
-            multi_mape = f"{metrics.get('multi_step_mape', 0):.2f}%" if metrics.get('multi_step_mape') is not None else "N/A"
-            f.write(f"| {status} | {full_model_name} | {single_acc} | {multi_acc} | {single_mape} | {multi_mape} | {created_date} |\n")
+            
+            f.write(f"| {i} | {model_name} | v{version} | {single_acc} | {multi_acc} | {status} | {created_date} |\n")
 
-        # (Optional) Add more sections as needed, e.g., detailed model analysis, usage instructions, etc.
+        # Production Models (most important)
+        if production_models:
+            f.write(f"\n## 🚀 Production Models ({len(production_models)})\n\n")
+            f.write("| Model Name | Version | Single-Acc | Multi-Acc | Created |\n")
+            f.write("|------------|---------|------------|-----------|--------|\n")
+            
+            for model in sorted(production_models, key=lambda x: (x['metrics']['single_step_accuracy'] or 0) if x['metrics'] else 0, reverse=True):
+                metrics = model['metrics'] or {}
+                model_name = model['run']['name'] if model['run'] else "Unknown"
+                version = model['version']
+                created_date = format_date(model['created_at'])
+                
+                single_acc = f"{metrics.get('single_step_accuracy', 0):.3f}" if metrics.get('single_step_accuracy') is not None else "N/A"
+                multi_acc = f"{metrics.get('multi_step_accuracy', 0):.3f}" if metrics.get('multi_step_accuracy') is not None else "N/A"
+                
+                f.write(f"| {model_name} | v{version} | {single_acc} | {multi_acc} | {created_date} |\n")
+
+        # Staging Models Ready for Promotion
+        if staging_models:
+            f.write(f"\n## 🧪 Staging Models ({len(staging_models)})\n")
+            f.write("*Models ready for production consideration*\n\n")
+            f.write("| Model Name | Version | Single-Acc | Multi-Acc | Created |\n")
+            f.write("|------------|---------|------------|-----------|--------|\n")
+            
+            for model in sorted(staging_models, key=lambda x: (x['metrics']['single_step_accuracy'] or 0) if x['metrics'] else 0, reverse=True):
+                metrics = model['metrics'] or {}
+                model_name = model['run']['name'] if model['run'] else "Unknown"
+                version = model['version']
+                created_date = format_date(model['created_at'])
+                
+                single_acc = f"{metrics.get('single_step_accuracy', 0):.3f}" if metrics.get('single_step_accuracy') is not None else "N/A"
+                multi_acc = f"{metrics.get('multi_step_accuracy', 0):.3f}" if metrics.get('multi_step_accuracy') is not None else "N/A"
+                
+                f.write(f"| {model_name} | v{version} | {single_acc} | {multi_acc} | {created_date} |\n")
+
+        # Quick Actions
+        f.write("\n## 🔧 Quick Actions\n\n")
+        f.write("- **Promote to Production**: Select high-performing staging models\n")
+        f.write("- **Compare Performance**: Use leaderboard for model selection\n")
+        f.write("- **Monitor Production**: Check production model performance\n")
 
 def main():
     parser = argparse.ArgumentParser(description="Generate W&B Model Registry Report")
