@@ -19,6 +19,10 @@ on:
         description: 'W&B Registry collection path'
         required: false
         default: 'chogerlate/wandb-registry-model/baq-forecastors'
+      issue_number:
+        description: 'PR number to comment on (for manual runs)'
+        required: false
+        type: number
   
   # Trigger on PR comment containing /promote_model
   issue_comment:
@@ -53,17 +57,25 @@ jobs:
       - name: Install the project
         run: uv sync --all-extras
       
-      - name: Extract parameters from comment
-        if: github.event_name == 'issue_comment'
+      - name: Extract parameters
         id: extract-params
+        shell: bash
         run: |
-          COMMENT="${{ github.event.comment.body }}"
-          # Format: /promote_model <version> <target>
-          # Example: /promote_model v1 staging
-          VERSION=$(echo "$COMMENT" | grep -oP '/promote_model\s+\K[^\s]+')
-          TARGET=$(echo "$COMMENT" | grep -oP '/promote_model\s+[^\s]+\s+\K[^\s]+')
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "target=$TARGET" >> $GITHUB_OUTPUT
+          # Set issue number
+          if [[ "${{ github.event_name }}" == "issue_comment" ]]; then
+            echo "issue_number=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
+          else
+            echo "issue_number=${{ github.event.inputs.issue_number }}" >> $GITHUB_OUTPUT
+          fi
+          
+          # Extract version and target from comment if it's a PR comment
+          if [[ "${{ github.event_name }}" == "issue_comment" ]]; then
+            COMMENT="${{ github.event.comment.body }}"
+            VERSION=$(echo "$COMMENT" | grep -oP '/promote_model\s+\K[^\s]+')
+            TARGET=$(echo "$COMMENT" | grep -oP '/promote_model\s+[^\s]+\s+\K[^\s]+')
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+            echo "target=$TARGET" >> $GITHUB_OUTPUT
+          fi
       
       - name: Promote model
         env:
@@ -86,7 +98,7 @@ jobs:
             --target "$TARGET"
       
       - name: Comment on PR
-        if: github.event_name == 'issue_comment'
+        if: steps.extract-params.outputs.issue_number != ''
         uses: actions/github-script@v7
         with:
           script: |
@@ -95,7 +107,7 @@ jobs:
             const workflowUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
             
             github.rest.issues.createComment({
-              issue_number: context.issue.number,
+              issue_number: ${{ steps.extract-params.outputs.issue_number }},
               owner: context.repo.owner,
               repo: context.repo.repo,
               body: `🤖 Model promotion workflow completed!\n\n` +
