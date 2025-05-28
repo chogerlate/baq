@@ -75,7 +75,7 @@ jobs:
           WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
           WANDB_MODEL_REGISTRY_COLLECTION_PATH: ${{ steps.params.outputs.collection_path }}
         run: |
-          python action_files/get_registry_models.py
+          python src/baq/action_files/get_registry_models.py
       
       - name: Debug - Show generated report
         run: |
