@@ -306,7 +306,7 @@ def main():
         model_name=args.model_name
     )
     
-    generate_markdown_report(models_data, args.entity, args.project, args.model_name)
+    generate_markdown_report(models_data, args.registry_entity, args.project, args.model_name)
     print(f"✅ Model registry report generated successfully: model_registry_report.md")
 
 if __name__ == "__main__":

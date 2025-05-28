@@ -78,7 +78,7 @@ jobs:
           WANDB_PROJECT: ${{ secrets.WANDB_PROJECT }}
           MODEL_NAME: ${{ secrets.WANDB_MODEL_NAME || 'baq-forecastors' }}
         run: |
-          python action_files/list_runs.py
+          python action_files/get_registry_models.py
       
       - name: Debug - Show generated report
         run: |
