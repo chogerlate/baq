@@ -4,7 +4,7 @@ import argparse
 from datetime import datetime
 from typing import List, Dict, Any
 
-from ..mlops.registry_inspection import list_models
+from baq.mlops.registry_inspection import list_models
 
 def get_performance_emoji(accuracy):
     """Get emoji based on accuracy performance"""
