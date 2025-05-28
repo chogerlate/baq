@@ -78,25 +78,7 @@ jobs:
           WANDB_PROJECT: ${{ secrets.WANDB_PROJECT }}
           MODEL_NAME: ${{ secrets.WANDB_MODEL_NAME || 'baq-forecastors' }}
         run: |
-          # Add custom parameters if provided
-          REGISTRY_ENTITY_ARG=""
-          PROJECT_ARG=""
-          MODEL_ARG=""
-          
-          if [ -n "${{ steps.params.outputs.registry_entity }}" ]; then
-            REGISTRY_ENTITY_ARG="--registry-entity ${{ steps.params.outputs.registry_entity }}"
-          fi
-          
-          if [ -n "${{ steps.params.outputs.project }}" ]; then
-            PROJECT_ARG="--project ${{ steps.params.outputs.project }}"
-          fi
-          
-          if [ -n "${{ steps.params.outputs.model_name }}" ]; then
-            MODEL_ARG="--model-name ${{ steps.params.outputs.model_name }}"
-          fi
-          
-          # Run the script
-          python action_files/list_runs.py $REGISTRY_ENTITY_ARG $PROJECT_ARG $MODEL_ARG
+          python action_files/list_runs.py
       
       - name: Debug - Show generated report
         run: |
