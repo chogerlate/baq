@@ -7,10 +7,18 @@ on:
       run_id:
         description: 'W&B Run ID to register'
         required: true
-      collection_path:
-        description: 'W&B Registry collection path (entity/project/model-name)'
+      registry_entity:
+        description: 'W&B registry entity'
         required: false
-        default: 'chogerlate/wandb-registry-model/baq-forecastors'
+        default: ''
+      project:
+        description: 'W&B project name'
+        required: false
+        default: ''
+      model_name:
+        description: 'Model name in registry'
+        required: false
+        default: ''
   
   # Trigger on PR comment containing /register_model
   issue_comment:
@@ -30,6 +38,36 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
       
+      - name: Extract parameters
+        id: params
+        run: |
+          if [[ "${{ github.event_name }}" == "issue_comment" ]]; then
+            COMMENT="${{ github.event.comment.body }}"
+            # Extract run ID after /register_model command
+            RUN_ID=$(echo "$COMMENT" | grep -oP '/register_model\s+\K[^\s]+')
+            # Check if comment has format: /register_model <run_id> <entity> <project> <model_name>
+            if [[ "$COMMENT" =~ /register_model\ +([^ ]+)\ +([^ ]+)\ +([^ ]+)\ +([^ ]+) ]]; then
+              REGISTRY_ENTITY="${BASH_REMATCH[2]}"
+              PROJECT="${BASH_REMATCH[3]}"
+              MODEL_NAME="${BASH_REMATCH[4]}"
+              COLLECTION_PATH="$REGISTRY_ENTITY/$PROJECT/$MODEL_NAME"
+            else
+              COLLECTION_PATH="${{ secrets.WANDB_MODEL_REGISTRY_COLLECTION_PATH }}"
+            fi
+          else
+            RUN_ID="${{ github.event.inputs.run_id }}"
+            REGISTRY_ENTITY="${{ github.event.inputs.registry_entity }}"
+            PROJECT="${{ github.event.inputs.project }}"
+            MODEL_NAME="${{ github.event.inputs.model_name }}"
+            if [[ -n "$REGISTRY_ENTITY" && -n "$PROJECT" && -n "$MODEL_NAME" ]]; then
+              COLLECTION_PATH="$REGISTRY_ENTITY/$PROJECT/$MODEL_NAME"
+            else
+              COLLECTION_PATH="${{ secrets.WANDB_MODEL_REGISTRY_COLLECTION_PATH }}"
+            fi
+          fi
+          echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
+          echo "collection_path=$COLLECTION_PATH" >> $GITHUB_OUTPUT
+      
       - name: Install uv
         uses: astral-sh/setup-uv@v5
         with:
@@ -45,21 +83,12 @@ jobs:
       - name: Install the project
         run: uv sync --all-extras
       
-      - name: Extract run ID from comment
-        if: github.event_name == 'issue_comment'
-        id: extract-run-id
-        run: |
-          COMMENT="${{ github.event.comment.body }}"
-          # Extract run ID after /register_model command
-          RUN_ID=$(echo "$COMMENT" | grep -oP '/register_model\s+\K[^\s]+')
-          echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
-      
       - name: Register model
         env:
           WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
-          WANDB_MODEL_REGISTRY_COLLECTION_PATH: ${{ github.event.inputs.collection_path || 'chogerlate/wandb-registry-model/baq-forecastors' }}
+          WANDB_MODEL_REGISTRY_COLLECTION_PATH: ${{ steps.params.outputs.collection_path }}
         run: |
-          RUN_ID="${{ github.event.inputs.run_id || steps.extract-run-id.outputs.run_id }}"
+          RUN_ID="${{ steps.params.outputs.run_id }}"
           if [ -z "$RUN_ID" ]; then
             echo "❌ No run ID provided"
             exit 1
