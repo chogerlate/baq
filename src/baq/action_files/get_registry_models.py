@@ -86,8 +86,11 @@ def get_alias_status(aliases):
     if latest_aliases:
         status.append("📦 latest")
     
-    # If no important aliases found but aliases exist, mark as registered
-    return ", ".join(status) if status else "📦 registered"
+    # If no important aliases found but aliases exist, use whatever is available
+    if not status:
+        return f"📦 {', '.join(aliases)}"
+    
+    return ", ".join(status)
 
 def generate_markdown_report(models_data, collection_path):
     """Generate a markdown report from model registry data using the new list_models structure."""
