@@ -69,17 +69,14 @@ jobs:
           enable-cache: true
           cache-dependency-glob: "uv.lock"
       
-      # Install Python
-      - name: "Set up Python"
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version-file: "pyproject.toml"
       
-      # Install dependencies
       - name: Install the project
         run: uv sync --all-extras
 
-      # Run registry report script
       - name: Run registry report script
         env:
           WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
@@ -87,14 +84,12 @@ jobs:
         run: |
           uv run src/baq/action_files/get_registry_models.py
       
-      # Debug - Show generated report
       - name: Debug - Show generated report
         run: |
           echo "Generated report content:"
           cat model_registry_report.md || echo "Report file not found. Checking for alternative file..."
           ls -la *.md
       
-      # Comment on PR
       - name: Comment on PR
         if: steps.params.outputs.issue_number != ''
         uses: peter-evans/create-or-update-comment@v3
@@ -102,10 +97,3 @@ jobs:
           token: ${{ secrets.BOT_TOKEN }}
           issue-number: ${{ steps.params.outputs.issue_number }}
           body-file: model_registry_report.md
-          
-    #   - name: Upload report as artifact
-    #     uses: actions/upload-artifact@v3
-    #     with:
-    #       name: model-registry-report
-    #       path: model_registry_report.md
-    #       retention-days: 90
