@@ -1,0 +1,106 @@
+name: Promote Model in W&B Registry
+
+on:
+  # Manual trigger with parameters
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Model version to promote (e.g., v1, v2)'
+        required: true
+      target:
+        description: 'Target environment to promote to'
+        required: true
+        type: choice
+        options:
+          - 'staging'
+          - 'production'
+          - 'latest'
+      collection_path:
+        description: 'W&B Registry collection path'
+        required: false
+        default: 'chogerlate/wandb-registry-model/baq-forecastors'
+  
+  # Trigger on PR comment containing /promote_model
+  issue_comment:
+    types: [created]
+
+jobs:
+  promote-model:
+    # Only run on PR comments containing the command or manual trigger
+    if: |
+      (github.event_name == 'workflow_dispatch') ||
+      (github.event_name == 'issue_comment' && 
+       github.event.issue.pull_request && 
+       contains(github.event.comment.body, '/promote_model'))
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.5.31"
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: "pyproject.toml"
+      
+      - name: Install the project
+        run: uv sync --all-extras
+      
+      - name: Extract parameters from comment
+        if: github.event_name == 'issue_comment'
+        id: extract-params
+        run: |
+          COMMENT="${{ github.event.comment.body }}"
+          # Format: /promote_model <version> <target>
+          # Example: /promote_model v1 staging
+          VERSION=$(echo "$COMMENT" | grep -oP '/promote_model\s+\K[^\s]+')
+          TARGET=$(echo "$COMMENT" | grep -oP '/promote_model\s+[^\s]+\s+\K[^\s]+')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "target=$TARGET" >> $GITHUB_OUTPUT
+      
+      - name: Promote model
+        env:
+          WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
+          WANDB_MODEL_REGISTRY_COLLECTION_PATH: ${{ github.event.inputs.collection_path || 'chogerlate/wandb-registry-model/baq-forecastors' }}
+        run: |
+          VERSION="${{ github.event.inputs.version || steps.extract-params.outputs.version }}"
+          TARGET="${{ github.event.inputs.target || steps.extract-params.outputs.target }}"
+          
+          if [ -z "$VERSION" ] || [ -z "$TARGET" ]; then
+            echo "❌ Both version and target are required"
+            echo "Usage: /promote_model <version> <target>"
+            echo "Example: /promote_model v1 staging"
+            exit 1
+          fi
+          
+          echo "🚀 Promoting model version $VERSION to $TARGET"
+          uv run src/baq/action_files/promote_model.py \
+            --version "$VERSION" \
+            --target "$TARGET"
+      
+      - name: Comment on PR
+        if: github.event_name == 'issue_comment'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const version = process.env.VERSION;
+            const target = process.env.TARGET;
+            const workflowUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `🤖 Model promotion workflow completed!\n\n` +
+                    `- Version: \`${version}\`\n` +
+                    `- Target: \`${target}\`\n` +
+                    `- Workflow: [View logs](${workflowUrl})\n\n` +
+                    `Check the workflow logs for promotion status.`
+            });
