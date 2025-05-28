@@ -1,0 +1,144 @@
+name: W&B Runs Report
+
+on:
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      entity:
+        description: 'W&B entity/username'
+        required: false
+        default: ''
+      project:
+        description: 'W&B project name'
+        required: false
+        default: ''
+      limit:
+        description: 'Maximum number of runs to fetch'
+        required: false
+        default: '50'
+        type: number
+      state:
+        description: 'Filter by run state'
+        required: false
+        default: ''
+        type: choice
+        options:
+          - ''
+          - finished
+          - running
+          - failed
+          - crashed
+          - killed
+      issue_number:
+        description: 'PR number to comment on (for manual runs)'
+        required: false
+        type: number
+
+jobs:
+  get-runs-report:
+    if: |
+      (github.event_name == 'issue_comment' && 
+       github.event.issue.pull_request && 
+       contains(github.event.comment.body, '/runs_report')) || 
+      github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        
+      - name: Extract parameters
+        id: params
+        run: |
+          if [[ "${{ github.event_name }}" == "issue_comment" ]]; then
+            ISSUE_NUM="${{ github.event.issue.number }}"
+            COMMENT="${{ github.event.comment.body }}"
+            
+            # Parse comment: /runs_report [entity] [project] [limit] [state]
+            if [[ "$COMMENT" =~ /runs_report\ +([^ ]+)\ +([^ ]+)\ +([^ ]+)\ +([^ ]+) ]]; then
+              ENTITY="${BASH_REMATCH[1]}"
+              PROJECT="${BASH_REMATCH[2]}"
+              LIMIT="${BASH_REMATCH[3]}"
+              STATE="${BASH_REMATCH[4]}"
+            elif [[ "$COMMENT" =~ /runs_report\ +([^ ]+)\ +([^ ]+)\ +([^ ]+) ]]; then
+              ENTITY="${BASH_REMATCH[1]}"
+              PROJECT="${BASH_REMATCH[2]}"
+              LIMIT="${BASH_REMATCH[3]}"
+              STATE=""
+            elif [[ "$COMMENT" =~ /runs_report\ +([^ ]+)\ +([^ ]+) ]]; then
+              ENTITY="${BASH_REMATCH[1]}"
+              PROJECT="${BASH_REMATCH[2]}"
+              LIMIT="50"
+              STATE=""
+            else
+              # Use defaults from environment
+              ENTITY="${{ secrets.WANDB_ENTITY || 'chogerlate' }}"
+              PROJECT="${{ secrets.WANDB_PROJECT || 'test-pipeline' }}"
+              LIMIT="50"
+              STATE=""
+            fi
+          else
+            ISSUE_NUM="${{ github.event.inputs.issue_number }}"
+            ENTITY="${{ github.event.inputs.entity }}"
+            PROJECT="${{ github.event.inputs.project }}"
+            LIMIT="${{ github.event.inputs.limit }}"
+            STATE="${{ github.event.inputs.state }}"
+            
+            # Use defaults if not provided
+            if [[ -z "$ENTITY" ]]; then
+              ENTITY="${{ secrets.WANDB_ENTITY || 'chogerlate' }}"
+            fi
+            if [[ -z "$PROJECT" ]]; then
+              PROJECT="${{ secrets.WANDB_PROJECT || 'test-pipeline' }}"
+            fi
+            if [[ -z "$LIMIT" ]]; then
+              LIMIT="50"
+            fi
+          fi
+          
+          echo "issue_number=$ISSUE_NUM" >> $GITHUB_OUTPUT
+          echo "entity=$ENTITY" >> $GITHUB_OUTPUT
+          echo "project=$PROJECT" >> $GITHUB_OUTPUT
+          echo "limit=$LIMIT" >> $GITHUB_OUTPUT
+          echo "state=$STATE" >> $GITHUB_OUTPUT
+      
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.5.31"
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: "pyproject.toml"
+      
+      - name: Install the project
+        run: uv sync --all-extras
+
+      - name: Run runs report script
+        env:
+          WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
+          WANDB_ENTITY: ${{ steps.params.outputs.entity }}
+          WANDB_PROJECT: ${{ steps.params.outputs.project }}
+        run: |
+          ARGS="--entity ${{ steps.params.outputs.entity }} --project ${{ steps.params.outputs.project }} --limit ${{ steps.params.outputs.limit }}"
+          if [[ -n "${{ steps.params.outputs.state }}" ]]; then
+            ARGS="$ARGS --state ${{ steps.params.outputs.state }}"
+          fi
+          uv run src/baq/action_files/get_runs.py $ARGS
+      
+      - name: Debug - Show generated report
+        run: |
+          echo "Generated report content:"
+          cat runs_report.md || echo "Report file not found. Checking for alternative file..."
+          ls -la *.md
+      
+      - name: Comment on PR
+        if: steps.params.outputs.issue_number != ''
+        uses: peter-evans/create-or-update-comment@v3
+        with:
+          token: ${{ secrets.BOT_TOKEN }}
+          issue-number: ${{ steps.params.outputs.issue_number }}
+          body-file: runs_report.md 
