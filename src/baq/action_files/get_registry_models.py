@@ -60,11 +60,11 @@ def get_metrics_from_run(run):
         "runtime": run.summary.get("_runtime")
     }
 
-def get_alias_status(aliases):
+def get_alias_status(aliases, version):
     """Get deployment status from aliases"""
     status = []
     if not aliases:
-        return "📦 unregistered"
+        return f"📦 {version}"
     
     # Define important aliases to look for
     important_aliases = ["production", "staging", "latest"]
@@ -85,10 +85,6 @@ def get_alias_status(aliases):
                      and "production" not in alias.lower()]
     if latest_aliases:
         status.append("📦 latest")
-    
-    # If no important aliases found but aliases exist, use whatever is available
-    if not status:
-        return f"📦 {', '.join(aliases)}"
     
     return ", ".join(status)
 
@@ -136,7 +132,7 @@ def generate_markdown_report(models_data, collection_path):
             model_name = model['run']['name'] if model['run'] else "Unknown"
             version = model['version']
             created_date = format_date(model['created_at'])
-            status = get_alias_status(model['aliases'])
+            status = get_alias_status(model['aliases'], version)
             perf_emoji = get_performance_emoji(metrics.get('single_step_accuracy'))
             # Compose model name with emoji and version
             full_model_name = f"{perf_emoji} {model_name}"
