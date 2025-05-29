@@ -1,0 +1,5 @@
+outs:
+- md5: 361747373906cb1fae710c966707eeb9
+  size: 5016348
+  hash: md5
+  path: latest.csv
