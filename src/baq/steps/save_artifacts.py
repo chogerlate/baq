@@ -1,3 +1,34 @@
+"""
+Artifact Saving Module for Bangkok Air Quality Forecasting.
+
+This module provides functionality to save trained models, preprocessors, evaluation metrics,
+and visualization plots to specified artifact directories. It supports various model types
+including LSTM, Random Forest, and XGBoost models, along with their associated artifacts.
+
+Features:
+- Model serialization and saving (supports multiple formats)
+- Time series preprocessor persistence
+- Metrics storage in JSON format
+- Plot visualization saving
+- Configurable artifact directory structure
+- Organized artifact management for reproducibility
+
+The module handles the complete artifact saving pipeline:
+1. Model weights and architecture persistence
+2. Data preprocessing pipeline serialization
+3. Performance metrics documentation
+4. Visualization plots storage
+
+Example:
+    >>> save_artifacts(
+    ...     model=trained_model,
+    ...     processor=data_processor,
+    ...     metrics=evaluation_metrics,
+    ...     plots=visualization_plots,
+    ...     artifacts_path="./artifacts",
+    ...     config=training_config
+    ... )
+"""
 import os
 from baq.utils.artifacts import save_model, save_metrics, save_plots, save_processor
 

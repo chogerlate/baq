@@ -1,3 +1,42 @@
+"""
+Training Module for Bangkok Air Quality Forecasting.
+
+This module provides functionality to train various models for PM2.5 forecasting.
+It supports both tabular models (XGBoost, Random Forest) and LSTM models.
+
+Features:
+- Multi-model training support (LSTM, Random Forest, XGBoost)
+- Automatic data preparation for different model types
+- Sequence creation for LSTM models with sliding window approach
+- Tabular feature engineering for traditional ML models
+- Model validation and performance evaluation
+- Configurable training parameters and hyperparameters
+- Comprehensive logging and error handling
+- Model-specific optimization strategies
+
+The module handles the complete training pipeline:
+1. Data preparation based on model type (tabular vs sequential)
+2. Model instantiation with custom parameters
+3. Training execution with validation monitoring
+4. Performance evaluation on test data
+5. Model artifact preparation for saving
+
+Example:
+    >>> model, metrics = train_model(
+    ...     X_train=train_features,
+    ...     y_train=train_targets,
+    ...     X_val=val_features,
+    ...     y_val=val_targets,
+    ...     X_test=test_features,
+    ...     y_test=test_targets,
+    ...     model_name="lstm",
+    ...     model_params=lstm_config,
+    ...     model_training_params=training_config,
+    ...     training_config=config
+    ... )
+"""
+
+
 import logging
 import numpy as np
 import pandas as pd

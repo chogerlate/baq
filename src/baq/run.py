@@ -1,3 +1,29 @@
+"""
+Main Entry Point for Bangkok Air Quality Forecasting Pipeline.
+
+This module serves as the primary entry point for running the Bangkok Air Quality
+forecasting training pipeline. It handles configuration management, logging setup,
+and pipeline orchestration using Hydra for configuration management.
+
+Features:
+- Hydra-based configuration management with YAML configs
+- Comprehensive logging setup with structured output
+- Environment variable loading for sensitive configurations
+- Main training pipeline orchestration
+- Error handling and graceful execution flow
+
+The module coordinates the complete ML pipeline execution:
+1. Configuration loading and resolution via Hydra
+2. Environment setup and logging initialization
+3. Training pipeline execution with all steps
+4. Graceful error handling and cleanup
+
+Example:
+    Run the training pipeline with default configuration:
+    >>> python src/baq/run.py
+    
+"""
+
 import logging
 import hydra
 from omegaconf import DictConfig, OmegaConf
