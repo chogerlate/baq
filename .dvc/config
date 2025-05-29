@@ -1,7 +1,0 @@
-[core]
-    remote = myremote
-['remote "s3_storage"']
-    url = s3://soccer-storage/
-['remote "myremote"']
-    url = s3://soccer-storage/baq-dvc
-    profile = soccer
