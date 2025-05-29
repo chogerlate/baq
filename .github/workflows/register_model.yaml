@@ -1,0 +1,116 @@
+name: Register Model to W&B Registry
+
+on:
+  # Manual trigger
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: 'W&B Run ID to register'
+        required: true
+      issue_number:
+        description: 'PR number to comment on (for manual runs)'
+        required: false
+        type: number
+
+  # Trigger on PR comment containing /register_model <run_id>
+  issue_comment:
+    types: [created]
+
+jobs:
+  register-model:
+    if: |
+      (github.event_name == 'workflow_dispatch') ||
+      (github.event_name == 'issue_comment' &&
+       github.event.issue.pull_request &&
+       contains(github.event.comment.body, '/register_model'))
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Extract parameters
+        id: params
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "issue_comment" ]]; then
+            COMMENT="${{ github.event.comment.body }}"
+            if [[ "$COMMENT" =~ /register_model\ +([^ ]+) ]]; then
+              echo "run_id=${BASH_REMATCH[1]}" >> $GITHUB_OUTPUT
+              echo "issue_number=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
+            else
+              echo "❌ Invalid comment format. Use: /register_model <run_id>"
+              exit 1
+            fi
+          else
+            echo "run_id=${{ github.event.inputs.run_id }}" >> $GITHUB_OUTPUT
+            echo "issue_number=${{ github.event.inputs.issue_number }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.5.31"
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: "pyproject.toml"
+
+      - name: Install the project
+        run: uv sync --all-extras
+
+      - name: Register model
+        id: register
+        continue-on-error: true
+        env:
+          WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
+          WANDB_MODEL_REGISTRY_COLLECTION_PATH: ${{ secrets.WANDB_MODEL_REGISTRY_COLLECTION_PATH }}
+          WANDB_PROJECT: ${{ secrets.WANDB_PROJECT }}
+          WANDB_ENTITY: ${{ secrets.WANDB_ENTITY }}
+        run: |
+          echo "🚀 Registering model from run: ${{ steps.params.outputs.run_id }}"
+          uv run src/baq/action_files/register_model.py --run-id "${{ steps.params.outputs.run_id }}"
+          echo "status=success" >> $GITHUB_OUTPUT
+
+      - name: Comment on PR (Success)
+        if: steps.params.outputs.issue_number != '' && steps.register.outputs.status == 'success'
+        uses: peter-evans/create-or-update-comment@v3
+        with:
+          token: ${{ secrets.BOT_TOKEN }}
+          issue-number: ${{ steps.params.outputs.issue_number }}
+          body: |
+            ✅ Model registration workflow completed successfully!
+
+            - Run ID: `${{ steps.params.outputs.run_id }}`
+            - [Workflow Logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+            Check the logs for registration details.
+
+      - name: Comment on PR (Failure)
+        if: steps.params.outputs.issue_number != '' && steps.register.outcome == 'failure'
+        uses: peter-evans/create-or-update-comment@v3
+        with:
+          token: ${{ secrets.BOT_TOKEN }}
+          issue-number: ${{ steps.params.outputs.issue_number }}
+          body: |
+            ❌ Model registration failed!
+
+            - Run ID: `${{ steps.params.outputs.run_id }}`
+            - [Error Logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+            Common issues:
+            1. Invalid run ID
+            2. Run not found in project
+            3. Run not in finished state
+            4. No model artifacts in run
+            
+            Try using the full run path: `entity/project/${{ steps.params.outputs.run_id }}`
+            
+            Check the logs for detailed error messages.
+
+      - name: Set final status
+        if: steps.register.outcome == 'failure'
+        run: exit 1

@@ -1,0 +1,145 @@
+name: Promote Model in W&B Registry
+
+on:
+  # Manual trigger with parameters
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Model version to promote (e.g., v1, v2)'
+        required: true
+      target:
+        description: 'Target environment to promote to'
+        required: true
+        type: choice
+        options:
+          - 'staging'
+          - 'production'
+          - 'latest'
+      collection_path:
+        description: 'W&B Registry collection path'
+        required: false
+        default: 'chogerlate/wandb-registry-model/baq-forecastors'
+      issue_number:
+        description: 'PR number to comment on (for manual runs)'
+        required: false
+        type: number
+  
+  # Trigger on PR comment containing /promote_model
+  issue_comment:
+    types: [created]
+
+# Add permissions block
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  promote-model:
+    # Only run on PR comments containing the command or manual trigger
+    if: |
+      (github.event_name == 'workflow_dispatch') ||
+      (github.event_name == 'issue_comment' && 
+       github.event.issue.pull_request && 
+       contains(github.event.comment.body, '/promote_model'))
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.5.31"
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: "pyproject.toml"
+      
+      - name: Install the project
+        run: uv sync --all-extras
+      
+      - name: Extract parameters
+        id: params
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "issue_comment" ]]; then
+            COMMENT="${{ github.event.comment.body }}"
+            if [[ "$COMMENT" =~ /promote_model\ +([^ ]+)\ +([^ ]+) ]]; then
+              echo "version=${BASH_REMATCH[1]}" >> $GITHUB_OUTPUT
+              echo "target=${BASH_REMATCH[2]}" >> $GITHUB_OUTPUT
+              echo "issue_number=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
+            else
+              echo "❌ Invalid comment format. Use: /promote_model <version> <target>"
+              echo "Example: /promote_model v1 staging"
+              exit 1
+            fi
+          else
+            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+            echo "target=${{ github.event.inputs.target }}" >> $GITHUB_OUTPUT
+            echo "issue_number=${{ github.event.inputs.issue_number }}" >> $GITHUB_OUTPUT
+          fi
+          
+          # Set collection path
+          COLLECTION_PATH="${{ github.event.inputs.collection_path }}"
+          if [ -z "$COLLECTION_PATH" ]; then
+            COLLECTION_PATH="${{ secrets.WANDB_MODEL_REGISTRY_COLLECTION_PATH }}"
+          fi
+          echo "collection_path=$COLLECTION_PATH" >> $GITHUB_OUTPUT
+      
+      - name: Promote model
+        id: promote
+        continue-on-error: true
+        env:
+          WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
+          WANDB_MODEL_REGISTRY_COLLECTION_PATH: ${{ steps.params.outputs.collection_path }}
+        run: |
+          echo "🚀 Promoting model version ${{ steps.params.outputs.version }} to ${{ steps.params.outputs.target }}"
+          uv run src/baq/action_files/promote_model.py \
+            --version "${{ steps.params.outputs.version }}" \
+            --target "${{ steps.params.outputs.target }}"
+          echo "status=success" >> $GITHUB_OUTPUT
+
+      - name: Comment on PR (Success)
+        if: steps.params.outputs.issue_number != '' && steps.promote.outputs.status == 'success'
+        uses: peter-evans/create-or-update-comment@v3
+        with:
+          issue-number: ${{ steps.params.outputs.issue_number }}
+          body: |
+            ✅ Model promotion completed successfully!
+
+            - Version: `${{ steps.params.outputs.version }}`
+            - Target: `${{ steps.params.outputs.target }}`
+            - Collection: `${{ steps.params.outputs.collection_path }}`
+            - [Workflow Logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+            Check the logs for promotion details.
+
+      - name: Comment on PR (Failure)
+        if: steps.params.outputs.issue_number != '' && steps.promote.outcome == 'failure'
+        uses: peter-evans/create-or-update-comment@v3
+        with:
+          issue-number: ${{ steps.params.outputs.issue_number }}
+          body: |
+            ❌ Model promotion failed!
+
+            - Version: `${{ steps.params.outputs.version }}`
+            - Target: `${{ steps.params.outputs.target }}`
+            - Collection: `${{ steps.params.outputs.collection_path }}`
+            - [Error Logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+            Common issues:
+            1. Invalid version format (should be vX, e.g., v1, v2)
+            2. Invalid target environment (must be staging/production/latest)
+            3. Version does not exist in the model registry
+            4. Insufficient permissions to promote model
+            
+            Check the logs for detailed error messages.
+
+      - name: Set final status
+        if: steps.promote.outcome == 'failure'
+        run: exit 1

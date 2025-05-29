@@ -1,4 +1,4 @@
-name: ML Workflow
+name: Check Code Quality
 on:
   push:
     branches: [ "main", "develop" ]
@@ -9,13 +9,10 @@ on:
 permissions: write-all
 
 jobs:
-  build:
+  check_code_quality:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: iterative/setup-cml@v2
-        env:
-          REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Install uv
         uses: astral-sh/setup-uv@v5
         with:
@@ -28,20 +25,3 @@ jobs:
           python-version-file: "pyproject.toml"
       - name: Install the project
         run: uv sync --all-extras 
-      - uses: astral-sh/ruff-action@v3
-        with:
-          args: --fix 
-          src: "./src"
-      - name: Train
-        run: uv run src/baq/run.py
-    #   - name: Evaluation
-    #     env:
-    #       REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    #     run: | 
-    #       echo "## Model Metrics" > report.md
-    #       cat metrics.txt >> report.md
-            
-    #       echo '## Confusion Matrix Plot' >> report.md
-    #       echo '![Confusion Matrix](model_results.png)' >> report.md
-
-    #       cml comment create report.md
