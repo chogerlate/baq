@@ -1,293 +1,380 @@
-# Weather Forecasting API
+# Bangkok Air Quality (BAQ) Forecasting
 
-A FastAPI-based weather forecasting application that provides machine learning-powered weather predictions using LSTM, sklearn, or XGBoost models.
+A comprehensive machine learning pipeline for PM2.5 air quality forecasting in Bangkok, Thailand. This project provides end-to-end capabilities for data processing, model training, evaluation, and deployment using multiple ML algorithms including LSTM, Random Forest, and XGBoost.
 
-## Features
+## 🌟 Features
 
-- **Startup Model Loading**: Models and processors are loaded once during application startup for optimal performance
-- **Multi-step forecasting**: Generate predictions for multiple time horizons
-- **Model flexibility**: Supports LSTM (Keras/TensorFlow), sklearn, and XGBoost models
-- **Preprocessing Pipeline**: Automatic data standardization and preprocessing with validation
-- **Cloud integration**: Integrates with AWS S3 and Weights & Biases (W&B) for model artifacts
-- **Caching**: Supports prediction caching to S3 for improved performance
-- **Health monitoring**: Built-in health checks and model information endpoints
-- **Robust Error Handling**: Comprehensive error handling with graceful fallbacks
+### Core Capabilities
+- **Multi-Model Support**: LSTM (deep learning), Random Forest, and XGBoost models
+- **Advanced Data Processing**: Comprehensive preprocessing pipeline with feature engineering
+- **Time Series Forecasting**: Single-step and multi-step PM2.5 predictions
+- **Experiment Tracking**: Integration with Weights & Biases (W&B) for MLOps
+- **Model Monitoring**: Automated performance monitoring and data drift detection
+- **Configuration Management**: Hydra-based configuration with YAML files
+- **Artifact Management**: Model and processor serialization with versioning
 
-## API Endpoints
+### Data Processing Features
+- **Temporal Feature Engineering**: Cyclical time encoding, lag features, rolling statistics
+- **Domain-Specific Features**: AQI tier classification, weekend/night indicators
+- **Robust Data Cleaning**: Missing value imputation, outlier handling, seasonal median filling
+- **Weather Code Encoding**: Categorical weather condition processing
+- **Data Validation**: Comprehensive quality checks and drift detection
 
-### Core Endpoints
+### Model Training & Evaluation
+- **Cross-Validation**: Time series aware validation strategies
+- **Performance Metrics**: MAE, RMSE, MAPE, R², accuracy calculations
+- **Visualization**: Prediction plots, performance comparisons, monitoring dashboards
+- **Hyperparameter Optimization**: Configurable model parameters
+- **Early Stopping**: Intelligent training termination for deep learning models
 
-- `GET /` - Welcome message
-- `GET /health` - Health check endpoint with model/processor status
-- `GET /model/info` - Get detailed information about the loaded model and processor
+## 📁 Repository Structure
 
-### Prediction Endpoints
+```
+baq/
+├── 📄 README.md                           # Project documentation
+├── 📄 pyproject.toml                      # Project configuration and dependencies
+├── 📄 requirements.txt                    # Python dependencies
+├── 📄 .env-example                        # Environment variables template
+├── 📄 PERFORMANCE_RESTORATION_SUMMARY.md  # Performance analysis documentation
+│
+├── 📁 configs/                            # Configuration files
+│   └── 📄 config.yaml                     # Main configuration file
+│
+├── 📁 src/baq/                            # Main source code package
+│   ├── 📄 __init__.py                     # Package initialization
+│   ├── 📄 py.typed                        # Type checking marker
+│   ├── 📄 run.py                          # Main entry point
+│   │
+│   ├── 📁 core/                           # Core functionality
+│   │   ├── 📄 evaluation.py               # Model evaluation metrics
+│   │   └── 📄 inference.py                # Prediction and forecasting logic
+│   │
+│   ├── 📁 data/                           # Data processing modules
+│   │   ├── 📄 processing.py               # Main data preprocessing pipeline
+│   │   └── 📄 utils.py                    # Data utility functions
+│   │
+│   ├── 📁 models/                         # Model implementations
+│   │   └── 📄 lstm.py                     # LSTM model architecture
+│   │
+│   ├── 📁 steps/                          # Pipeline steps
+│   │   ├── 📄 load_data.py                # Data loading step
+│   │   ├── 📄 process.py                  # Data processing step
+│   │   ├── 📄 train.py                    # Model training step
+│   │   ├── 📄 evaluate.py                 # Model evaluation step
+│   │   ├── 📄 monitoring_report.py        # Performance monitoring
+│   │   └── 📄 save_artifacts.py           # Artifact saving step
+│   │
+│   ├── 📁 pipelines/                      # ML pipelines
+│   ├── 📁 utils/                          # Utility functions
+│   ├── 📁 scripts/                        # Automation scripts
+│   └── 📁 action_files/                   # Action configurations
+│
+├── 📁 data/                               # Data storage
+├── 📁 notebooks/                          # Jupyter notebooks
+│   ├── 📄 experiment.ipynb                # Experimentation notebook
+│   ├── 📄 api_call.ipynb                  # API testing notebook
+│   ├── 📄 wandb.ipynb                     # W&B integration examples
+│   └── 📄 test_module.ipynb               # Module testing
+│
+├── 📁 outputs/                            # Pipeline outputs
+├── 📁 wandb/                              # Weights & Biases artifacts
+├── 📁 docs/                               # Documentation
+└── 📁 .github/                            # GitHub workflows
+```
 
-- `POST /predict/onetime` - Single-step prediction
-- `POST /predict/next` - Multi-step forecasting with configurable horizon
-- `POST /predict/cache` - Generate 96-step predictions and cache them to S3
+## 🚀 Quick Start
 
-## Installation
+### Prerequisites
 
-1. Install dependencies:
+- Python 3.10+
+- pip or uv package manager
+- Optional: AWS S3 access for data storage
+- Optional: Weights & Biases account for experiment tracking
+
+### Installation
+
+1. **Clone the repository**:
 ```bash
+git clone <repository-url>
+cd baq
+```
+
+2. **Install dependencies**:
+```bash
+# Using pip
 pip install -r requirements.txt
+
+# Using uv (recommended)
+uv sync
 ```
 
-2. Set up AWS credentials (for S3 access):
+3. **Set up environment variables**:
 ```bash
-export AWS_ACCESS_KEY_ID=your_access_key
-export AWS_SECRET_ACCESS_KEY=your_secret_key
-export AWS_DEFAULT_REGION=your_region
+cp .env-example .env
+# Edit .env with your configurations
 ```
 
-3. Set up Weights & Biases (optional, for model artifacts):
+4. **Configure Weights & Biases** (optional):
 ```bash
 wandb login
 ```
 
-## Usage
+### Basic Usage
 
-### Starting the Server
-
-#### Using the startup script (recommended):
+**Run the complete training pipeline**:
 ```bash
-python run_app.py
+python src/baq/run.py
 ```
 
-#### Using uvicorn directly:
+**Run with custom configuration**:
 ```bash
-uvicorn baq.app.main:app --host 0.0.0.0 --port 8000
+python src/baq/run.py model.model_type=lstm training.epochs=100
 ```
 
-#### With development reload:
-```bash
-RELOAD=true python run_app.py
+## ⚙️ Configuration
+
+The project uses Hydra for configuration management. Main configuration file: `configs/config.yaml`
+
+### Key Configuration Sections
+
+#### Model Configuration
+```yaml
+model:
+  model_type: "random_forest"  # Options: "random_forest", "xgboost", "lstm"
+  random_forest:
+    model_params:
+      n_estimators: 50
+      max_depth: 10
+  lstm:
+    model_params:
+      n_layers: 2
+      hidden_size: 512
+      dropout: 0.2
+    training_params:
+      learning_rate: 0.001
+      batch_size: 64
+      epochs: 100
 ```
 
-### Environment Variables
-
-- `HOST`: Server host (default: 0.0.0.0)
-- `PORT`: Server port (default: 8000)
-- `WORKERS`: Number of worker processes (default: 1)
-- `LOG_LEVEL`: Logging level (default: info)
-- `RELOAD`: Enable auto-reload for development (default: false)
-
-### Startup Process
-
-The application follows this startup sequence:
-
-1. **Model Loading**: Downloads or loads models from W&B artifacts or local cache
-2. **Processor Loading**: Loads preprocessing artifacts (scalers, encoders, etc.)
-3. **Validation**: Validates that loaded artifacts have required methods
-4. **Ready**: Application is ready to serve predictions
-
-```
-🚀 Loading model and processor during startup...
-Loading Keras model from: /path/to/model.h5
-Loading processor from: /path/to/processor.joblib
-✅ Model and processor loaded successfully!
-📊 Model type: Sequential
-🔧 Processor type: StandardScaler
+#### Training Configuration
+```yaml
+training:
+  forecast_horizon: 24
+  sequence_length: 24
+  target_column: "pm2_5_(μg/m³)"
+  test_size: 0.2
+  random_state: 42
 ```
 
-### API Usage Examples
-
-#### Health Check with Status
-```bash
-curl http://localhost:8000/health
+#### Experiment Tracking
+```yaml
+wandb:
+  tags: ["pm2.5", "forecasting", "air-quality"]
+  log_model: true
+  register_model: false
 ```
 
-Response:
-```json
-{
-  "status": "healthy",
-  "timestamp": "2024-01-15T10:30:00",
-  "service": "Weather Forecasting API",
-  "model_status": "loaded",
-  "processor_status": "loaded"
-}
-```
+## 🔧 Data Processing Pipeline
 
-#### Model Information
-```bash
-curl http://localhost:8000/model/info
-```
+### Input Data Format
+The pipeline expects weather and air quality data with temporal features:
+- **Meteorological**: Temperature, humidity, pressure, wind speed, precipitation
+- **Environmental**: Soil conditions, UV index, visibility
+- **Air Quality**: PM2.5 historical values and derived features
+- **Temporal**: Timestamps for time series analysis
 
-Response:
-```json
-{
-  "model_type": "Sequential",
-  "timestamp": "2024-01-15T10:30:00",
-  "processor_available": true,
-  "processor_type": "StandardScaler",
-  "trainable_params": 12345
-}
-```
+### Feature Engineering
+The `TimeSeriesDataProcessor` creates comprehensive features:
 
-#### Single Prediction
-```bash
-curl -X POST http://localhost:8000/predict/onetime
-```
+1. **Temporal Features**:
+   - Hour, day, month, day of week
+   - Weekend/night indicators
+   - Cyclical encoding (sin/cos transformations)
 
-#### Multi-step Forecasting
-```bash
-curl -X POST "http://localhost:8000/predict/next" \
-     -H "Content-Type: application/json" \
-     -d '{"forecast_horizon": 24}'
-```
+2. **Lag Features**:
+   - PM2.5 values from 1, 3, 6, 12, 24 hours ago
+   - Rolling means and standard deviations
 
-#### Cache 96-Hour Predictions
-```bash
-curl -X POST http://localhost:8000/predict/cache
-```
+3. **Domain-Specific Features**:
+   - AQI tier classification (0-5 based on PM2.5 levels)
+   - Weather code encoding
 
-## Model Loading Strategy
+4. **Data Quality**:
+   - Missing value imputation
+   - Outlier detection and handling
+   - Seasonal median filling
 
-The application uses a robust model loading strategy with fallbacks:
+## 🤖 Model Training
 
-### Primary: W&B Artifacts
-1. Downloads models from Weights & Biases registry
-2. Loads both model and preprocessing artifacts
-3. Validates artifact integrity
+### Supported Models
 
-### Fallback: Local Files
-If W&B loading fails, searches for local files in:
+#### 1. LSTM (Long Short-Term Memory)
+- **Use Case**: Complex temporal patterns, long-term dependencies
+- **Architecture**: Dual-layer LSTM with dropout regularization
+- **Features**: Early stopping, learning rate scheduling, model checkpointing
 
-**Model Files:**
-- `models/best_lstm.h5`
-- `models/model.joblib`
-- `artifacts/model.h5`
-- `artifacts/model.joblib`
+#### 2. Random Forest
+- **Use Case**: Robust baseline, feature importance analysis
+- **Features**: Ensemble learning, handles non-linear relationships
 
-**Processor Files:**
-- `models/processor.joblib`
-- `artifacts/processor.joblib`
-- `models/scaler.joblib`
-- `artifacts/scaler.joblib`
+#### 3. XGBoost
+- **Use Case**: High performance, gradient boosting
+- **Features**: Advanced regularization, efficient training
 
-### Supported Formats
+### Training Process
 
-- **Models**: Keras/TensorFlow (`.h5`, `.keras`), scikit-learn/XGBoost (`.joblib`, `.pkl`)
-- **Processors**: Any scikit-learn transformer (`.joblib`, `.pkl`)
+1. **Data Loading**: Load raw weather and air quality data
+2. **Preprocessing**: Apply feature engineering and scaling
+3. **Model Training**: Train selected model with configured parameters
+4. **Evaluation**: Calculate performance metrics on test set
+5. **Artifact Saving**: Save trained model and preprocessors
+6. **Monitoring**: Generate performance and drift reports
 
-## Data Processing Pipeline
+## 📊 Evaluation & Monitoring
 
-### 1. Data Loading
-- Loads weather data from S3
-- Handles time column conversion and indexing
+### Performance Metrics
+- **MAE** (Mean Absolute Error): Average prediction error
+- **RMSE** (Root Mean Square Error): Penalizes large errors
+- **MAPE** (Mean Absolute Percentage Error): Relative error percentage
+- **R²** (Coefficient of Determination): Explained variance
+- **Accuracy**: 1 - MAPE
 
-### 2. Column Standardization
-- Ensures all required 52 features are present
-- Fills missing columns with zeros
-- Maintains consistent column order
+### Forecasting Types
+- **Single-Step**: Predict next time step
+- **Multi-Step**: Predict multiple future time steps
+- **Iterative Forecasting**: Use predictions as inputs for future steps
 
-### 3. Preprocessing
-- Applies loaded preprocessing transformations (scaling, encoding)
-- Validates processor before application
-- Graceful fallback if preprocessing fails
+### Monitoring Features
+- **Data Drift Detection**: Statistical tests for distribution changes
+- **Performance Tracking**: Metric trends over time
+- **Feature Importance**: Model interpretability analysis
+- **Visualization**: Prediction plots, residual analysis
 
-### 4. Prediction
-- Supports both single-step and multi-step forecasting
-- Handles LSTM sequence creation automatically
-- Returns formatted prediction responses
+## 🔬 Experiment Tracking
 
-## Input Data Format
+### Weights & Biases Integration
+- **Experiment Logging**: Automatic metric and parameter tracking
+- **Model Versioning**: Artifact management and model registry
+- **Visualization**: Interactive plots and dashboards
+- **Collaboration**: Team experiment sharing
 
-The application expects weather data with 52 standardized features:
-- **Meteorological**: Temperature, humidity, pressure, wind, precipitation
-- **Environmental**: Soil conditions, air quality, UV index
-- **Temporal**: Hour, day of week, month, cyclical encodings
-- **Lag Features**: PM2.5 historical values and rolling means
-- **Categorical**: Weather codes, PM2.5 tier classifications
+### Logged Information
+- Model hyperparameters and architecture
+- Training and validation metrics
+- Feature importance scores
+- Prediction visualizations
+- Data quality reports
 
-See `baq.app.utils.standardize_input_columns()` for the complete feature list.
+## 🛠️ Development
 
-## Error Handling
+### Project Structure Principles
+- **Modular Design**: Separate concerns into focused modules
+- **Configuration-Driven**: Hydra-based parameter management
+- **Type Safety**: Type hints and py.typed marker
+- **Testing**: Comprehensive test coverage (notebooks for experimentation)
+- **Documentation**: Detailed docstrings and examples
 
-### Startup Errors
-- Model loading failures log errors but allow app to start
-- Validation failures are caught and reported
-- Graceful degradation for missing processors
+### Key Modules
 
-### Runtime Errors
-- **503 Service Unavailable**: Model not loaded
-- **500 Internal Server Error**: Data processing or prediction failures
-- **Detailed error messages**: Help with debugging
+#### `src/baq/data/processing.py`
+- **TimeSeriesDataProcessor**: Main preprocessing pipeline
+- **Features**: Data cleaning, feature engineering, scaling, validation
+- **Methods**: `fit_transform()`, `transform()`, `inverse_transform_target()`
 
-### Logging
-- Startup progress with emoji indicators
-- Warning messages for missing processors
-- Detailed error reporting for troubleshooting
+#### `src/baq/models/lstm.py`
+- **LSTMForecaster**: Deep learning model implementation
+- **Features**: Configurable architecture, callbacks, early stopping
+- **Methods**: `fit()`, `predict()`, model checkpointing
 
-## Performance Optimizations
+#### `src/baq/core/inference.py`
+- **Forecasting Functions**: Single-step and multi-step prediction
+- **Features**: Model-agnostic interface, sequence handling
+- **Methods**: `single_step_forecasting()`, `multi_step_forecasting()`
 
-- **Single Model Load**: Models loaded once at startup, not per request
-- **Preprocessing Validation**: Validates processors to avoid runtime failures
-- **Connection Pooling**: Reuses S3 client connections
-- **Memory Efficiency**: Proper cleanup on shutdown
+### Adding New Models
+1. Implement model class in `src/baq/models/`
+2. Add configuration section in `config.yaml`
+3. Update training logic in `src/baq/steps/train.py`
+4. Add evaluation support in `src/baq/steps/evaluate.py`
 
-## Development
+## 🚀 Deployment
 
-### Project Structure
-```
-src/baq/
-├── app/
-│   ├── main.py          # FastAPI application with startup events
-│   ├── utils.py         # Preprocessing and validation utilities
-│   └── artifacts.py     # W&B artifact handling
-├── core/
-│   └── inference.py     # Forecasting algorithms
-├── models/
-│   └── lstm.py          # LSTM model class
-└── data/
-    └── utils.py         # Data processing utilities
-```
+### Model Artifacts
+- **Model Files**: Serialized trained models (.h5, .joblib)
+- **Preprocessors**: Fitted scalers and encoders (.joblib)
+- **Metadata**: Training configuration and metrics (.json)
 
-### Testing
+### Integration Options
+- **Batch Prediction**: Process historical data in batches
+- **Real-time API**: Deploy models as REST APIs
+- **Scheduled Jobs**: Automated retraining and prediction
+- **Cloud Deployment**: AWS, GCP, Azure integration
 
-Monitor startup logs to ensure proper loading:
-```bash
-python run_app.py
-```
-
-Test endpoints using curl or API testing tools.
-
-## Troubleshooting
+## 🔍 Troubleshooting
 
 ### Common Issues
 
-1. **Model not loading**
-   - Check W&B credentials: `wandb login`
-   - Verify local model files exist
-   - Check file permissions
+1. **Data Loading Errors**
+   - Check file paths in `config.yaml`
+   - Verify data format and column names
+   - Ensure proper datetime indexing
 
-2. **Processor warnings**
-   - Normal if no preprocessing artifacts available
-   - Predictions will use raw standardized features
+2. **Memory Issues**
+   - Reduce batch size for LSTM training
+   - Use data chunking for large datasets
+   - Monitor memory usage during processing
 
-3. **S3 access errors**
-   - Verify AWS credentials and bucket permissions
-   - Check network connectivity
+3. **Model Performance**
+   - Check feature engineering pipeline
+   - Verify target column name format
+   - Review hyperparameter settings
 
-4. **Memory issues**
-   - Reduce forecast horizon for large predictions
-   - Use single worker in development
+4. **W&B Connection Issues**
+   - Verify API key: `wandb login`
+   - Check internet connectivity
+   - Review project permissions
 
-### Monitoring
+### Performance Optimization
+- **Feature Selection**: Use domain knowledge for feature engineering
+- **Hyperparameter Tuning**: Grid search or Bayesian optimization
+- **Data Quality**: Ensure clean, consistent input data
+- **Model Selection**: Choose appropriate algorithm for data characteristics
 
-- Check `/health` endpoint for service status
-- Monitor startup logs for loading issues
-- Use `/model/info` for artifact details
+## 📈 Performance Improvements
 
-## Contributing
+Recent performance restoration includes:
+- **Enhanced Feature Engineering**: AQI tiers, cyclical encoding, weekend/night indicators
+- **Robust Data Processing**: Better column handling, weather code encoding
+- **Improved Target Handling**: Multiple column name format support
+- **Extended Rolling Windows**: Additional temporal feature scales
+
+See `PERFORMANCE_RESTORATION_SUMMARY.md` for detailed analysis.
+
+## 🤝 Contributing
 
 1. Fork the repository
-2. Create a feature branch
-3. Add tests for new functionality
-4. Ensure startup process works correctly
+2. Create a feature branch: `git checkout -b feature/new-feature`
+3. Make changes and add tests
+4. Update documentation as needed
 5. Submit a pull request
 
-## License
+### Development Guidelines
+- Follow PEP 8 style guidelines
+- Add type hints to new functions
+- Include docstrings with examples
+- Test changes with different model types
+- Update configuration documentation
+
+## 📄 License
 
 [Add your license information here]
+
+## 📞 Contact
+
+- **Author**: chogerlate
+- **Email**: siwaratlaopromger4444@gmail.com
+- **Project**: Bangkok Air Quality Forecasting
+
+---
+
+**Note**: This project is designed for educational and research purposes in air quality forecasting. For production use, additional validation and testing are recommended.
