@@ -406,16 +406,4 @@ See `PERFORMANCE_RESTORATION_SUMMARY.md` for detailed analysis.
 - Test changes with different model types
 - Update configuration documentation
 
-## 📄 License
-
-[Add your license information here]
-
-## 📞 Contact
-
-- **Author**: chogerlate
-- **Email**: siwaratlaopromger4444@gmail.com
-- **Project**: Bangkok Air Quality Forecasting
-
----
-
 **Note**: This project is designed for educational and research purposes in air quality forecasting. For production use, additional validation and testing are recommended.
