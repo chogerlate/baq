@@ -1,13 +1,13 @@
 # Global Configuration
-experiment_tracking_status: false
+experiment_tracking_status: true
 
 # Data Configuration
 data:
-  raw_data_path: "/home/chogerlate/Documents/github/cpe393/baq/data/raw_data/raw_data_2025_05_25.csv"
+  raw_data_path: "/home/chogerlate/Documents/github/cpe393/baq/data/raw_data/raw_data_2025_05_28.csv"
 
 # Model Configuration
 model:
-  model_type: "lstm" # Options: "random_forest", "xgboost", "lstm"
+  model_type: "random_forest" # Options: "random_forest", "xgboost", "lstm"
   random_forest:
     model_params:
       n_estimators: 50

@@ -1,3 +1,22 @@
+"""
+Module for retrieving and displaying model information from Weights & Biases registry.
+
+This module provides functionality to fetch model artifacts and their associated runs
+from a W&B registry, extract performance metrics, and display them in a formatted
+table with performance indicators.
+
+Key features:
+- Retrieves model artifacts from W&B registry
+- Extracts performance metrics (accuracy, MAPE, MAE) for both single-step and multi-step predictions
+- Formats runtime information in human-readable format
+- Displays performance with emoji indicators based on accuracy thresholds
+- Provides tabular output of model information including versions, metrics, and metadata
+
+The module is designed to help users quickly assess and compare model performance
+across different versions in their model registry.
+"""
+
+
 import os
 import wandb
 import argparse

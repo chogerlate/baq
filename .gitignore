@@ -24,5 +24,8 @@ artifacts/
 mlruns/
 mlartifacts/
 outputs/
-/data/
 /wandb/
+
+# Data
+/data/raw_data/*
+!/data/raw_data/*.dvc
