@@ -1,3 +1,35 @@
+"""
+Model Evaluation Module for Bangkok Air Quality Forecasting.
+
+This module provides comprehensive evaluation capabilities for PM2.5 forecasting models.
+It supports both single-step and multi-step forecasting evaluation with detailed
+performance metrics and visualization.
+
+Features:
+- Single-step and multi-step forecasting evaluation
+- Support for multiple model types (LSTM, Random Forest, XGBoost)
+- Comprehensive performance metrics calculation
+- Visualization of predictions vs actual values
+- Sequence handling for time series models
+- Model-agnostic evaluation interface
+
+The evaluation process includes:
+1. Single-step forecasting and metrics calculation
+2. Multi-step forecasting and metrics calculation
+3. Performance visualization generation
+4. Comparative analysis between forecasting approaches
+
+Example:
+    >>> single_metrics, multi_metrics, plots = evaluate_model(
+    ...     model=trained_model,
+    ...     X_test=test_features,
+    ...     y_test=test_targets,
+    ...     forecast_horizon=24,
+    ...     sequence_length=24
+    ... )
+
+"""
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd

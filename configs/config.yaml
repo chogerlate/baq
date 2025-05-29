@@ -3,7 +3,7 @@ experiment_tracking_status: false
 
 # Data Configuration
 data:
-  raw_data_path: "/home/chogerlate/Documents/github/cpe393/baq/data/raw_data/latest.csv"
+  raw_data_path: "/home/chogerlate/Documents/github/cpe393/baq/data/raw_data/raw_data_2025_05_28.csv"
 
 # Model Configuration
 model:
@@ -60,7 +60,7 @@ artifacts:
 training:
   forecast_horizon: 24
   sequence_length: 24
-  target_column: "pm2_5_(μg/m³)"
+  target_column: "pm2_5 (μg/m³)"
   n_splits: 5
   test_size: 0.2
   random_state: 42
