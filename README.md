@@ -2,6 +2,47 @@
 
 A comprehensive machine learning pipeline for PM2.5 air quality forecasting in Bangkok, Thailand. This project provides end-to-end capabilities for data processing, model training, evaluation, and deployment using multiple ML algorithms including LSTM, Random Forest, and XGBoost.
 
+
+## MLOps Architecture
+![MLOps Diagram drawio(1)](https://github.com/user-attachments/assets/ec84264a-0d7d-45fa-b3ca-aa128296dc18)
+
+
+
+
+## 🔗 Related GitHub Repositories for the BAQ Project
+
+Here are the main repositories that make up the **BAQ** project, covering everything from data pipelines to APIs, experiments, and frontend interfaces.
+
+---
+
+### 🏠 Main Repository  
+- **Purpose**: Central codebase and project orchestration  
+- **URL**: [chogerlate/baq](https://github.com/chogerlate/baq)
+
+---
+
+### ⛓️ DAG & Airflow Repository  
+- **Purpose**: Airflow DAGs for ETL and scheduled workflows  
+- **URL**: [Saranunt/baq-airflow](https://github.com/Saranunt/baq-airflow)
+
+---
+
+### ⚙️ FastAPI Backend  
+- **Purpose**: API services for model inference and system integration  
+- **URL**: [Saranunt/baq-api](https://github.com/Saranunt/baq-api)
+
+---
+
+### 🎨 Streamlit Frontend  
+- **Purpose**: Interactive web UI for exploring model outputs and results  
+- **URL**: [tawayahc/baq-frontend](https://github.com/tawayahc/baq-frontend)
+
+---
+
+### 🧪 Model Experimentation  
+- **Purpose**: Notebooks, training scripts, and experimental ML workflows  
+- **URL**: [tawayahc/baq-experiment](https://github.com/tawayahc/baq-experiment)
+
 ## 🌟 Features
 
 ### Core Capabilities
