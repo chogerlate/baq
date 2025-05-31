@@ -1,6 +1,7 @@
 # Bangkok Air Quality (BAQ) Forecasting
 
 A comprehensive machine learning pipeline for PM2.5 air quality forecasting in Bangkok, Thailand. This project provides end-to-end capabilities for data processing, model training, evaluation, and deployment using multiple ML algorithms including LSTM, Random Forest, and XGBoost.
+For more information check the presentation and document report in [docs/](https://github.com/chogerlate/baq/tree/main/docs)
 
 
 ## MLOps Architecture
@@ -350,6 +351,37 @@ The `TimeSeriesDataProcessor` creates comprehensive features:
 - **Real-time API**: Deploy models as REST APIs
 - **Scheduled Jobs**: Automated retraining and prediction
 - **Cloud Deployment**: AWS, GCP, Azure integration
+
+## CI/CD Strategy
+
+Our project fully develop workflow orchestration and implements a CI/CD pipeline with a focus on **performance validation** and **best industry practices** for responsible deployment.
+** You can check this process in [https://github.com/chogerlate/baq/pull/21](https://github.com/chogerlate/baq/pull/21) ** which demonstrate our the CI/CD strategy. 
+
+### Overview
+
+- **CI/CD on Code Change**:  
+  Continuous Integration (CI) and Continuous Deployment (CD) are triggered automatically upon every code change. This ensures that our codebase remains robust and testable, with unit and integration tests running on each commit or pull request.
+
+- **Human-in-the-Loop Model Promotion**:  
+  While code changes follow an automated pipeline, model deployments require **team approval** before going live. This step ensures that model performance is **verified by humans** and aligns with business objectives before release.
+
+### Deployment Flow
+
+We streamline deployment by leveraging **Weights & Biases (W&B)** and cloud-native practices:
+
+- The latest model artifact is automatically loaded by our cloud infrastructure on startup.
+- There is **no need to rebuild or redeploy Docker images** for every model update.
+- This decouples model deployment from application builds, allowing for faster iterations and rollback capabilities.
+
+### Benefits
+
+- ✅ Ensures high model performance before deployment  
+- ✅ Reduces deployment time and resource overhead  
+- ✅ Encourages responsible ML practices with human validation  
+- ✅ Simplifies infrastructure with dynamic model loading
+
+This approach balances automation with accountability, aligning with real-world ML ops best practices.
+
 
 ## 🔍 Troubleshooting
 
