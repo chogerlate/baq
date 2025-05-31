@@ -7,6 +7,8 @@ For more information check the presentation and document report in [docs/](https
 ## MLOps Architecture
 ![MLOps Diagram drawio(1)](https://github.com/user-attachments/assets/ec84264a-0d7d-45fa-b3ca-aa128296dc18)
 
+### Tech Stack
+![image](https://github.com/user-attachments/assets/1cc90f47-d606-49cc-be27-7934cfb067ab)
 
 
 
